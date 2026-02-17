@@ -5,6 +5,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
     display_name: str | None = None
+    invite_token: str | None = None
 
 
 class LoginRequest(BaseModel):

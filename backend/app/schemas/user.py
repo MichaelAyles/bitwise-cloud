@@ -8,6 +8,7 @@ class UserResponse(BaseModel):
     id: uuid.UUID
     email: EmailStr
     display_name: str | None
+    is_admin: bool
     created_at: datetime
     storage_used_bytes: int
     storage_limit_bytes: int

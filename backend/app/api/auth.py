@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
@@ -5,7 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.models.invite import Invite
+from app.models.system_setting import SystemSetting
 from app.models.user import User
+from app.schemas.admin import SettingsResponse
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
 from app.services.auth_service import (
     create_access_token,
@@ -19,8 +24,42 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+async def _get_registration_mode(db: AsyncSession) -> str:
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "registration_mode"))
+    setting = result.scalar_one_or_none()
+    return setting.value if setting else "invite_only"
+
+
+@router.get("/settings", response_model=SettingsResponse)
+async def public_settings(db: AsyncSession = Depends(get_db)):
+    mode = await _get_registration_mode(db)
+    return SettingsResponse(registration_mode=mode)
+
+
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)):
+    mode = await _get_registration_mode(db)
+
+    invite = None
+    if mode == "invite_only":
+        if not body.invite_token:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration is invite-only. An invite token is required.")
+
+        result = await db.execute(select(Invite).where(Invite.token == body.invite_token))
+        invite = result.scalar_one_or_none()
+
+        if invite is None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid invite token")
+
+        if invite.accepted_at is not None:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite has already been used")
+
+        if invite.expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite has expired")
+
+        if invite.email.lower() != body.email.lower():
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email does not match invite")
+
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
@@ -29,8 +68,13 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
         email=body.email,
         password_hash=hash_password(body.password),
         display_name=body.display_name,
+        invited_by=invite.invited_by if invite else None,
     )
     db.add(user)
+
+    if invite:
+        invite.accepted_at = datetime.now(timezone.utc)
+
     await db.commit()
     await db.refresh(user)
 

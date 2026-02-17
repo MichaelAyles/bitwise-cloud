@@ -60,9 +60,9 @@ export class ApiError extends Error {
 
 // Auth
 export const auth = {
-  register: (email: string, password: string) =>
+  register: (email: string, password: string, invite_token?: string) =>
     request<{ access_token: string }>('/auth/register', {
-      method: 'POST', body: JSON.stringify({ email, password }),
+      method: 'POST', body: JSON.stringify({ email, password, invite_token }),
     }),
   login: (email: string, password: string) =>
     request<{ access_token: string }>('/auth/login', {
@@ -70,6 +70,8 @@ export const auth = {
     }),
   refresh: () =>
     request<{ access_token: string }>('/auth/refresh', { method: 'POST', credentials: 'include' }),
+  settings: () =>
+    request<{ registration_mode: string }>('/auth/settings'),
 };
 
 // Users
@@ -163,11 +165,75 @@ export const apiKeys = {
     request<void>(`/api-keys/${id}`, { method: 'DELETE' }),
 };
 
+// Admin
+export interface AdminStats {
+  total_users: number;
+  active_users: number;
+  total_documents: number;
+  total_storage_bytes: number;
+  documents_by_status: Record<string, number>;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  display_name: string | null;
+  is_active: boolean;
+  is_admin: boolean;
+  created_at: string;
+  storage_used_bytes: number;
+  storage_limit_bytes: number;
+  document_count: number;
+  api_key_count: number;
+}
+
+export interface AdminDocument {
+  id: string;
+  title: string;
+  filename: string;
+  file_size_bytes: number;
+  page_count: number | null;
+  status: string;
+  chunk_count: number;
+  register_count: number;
+  created_at: string;
+  owner_email: string;
+  owner_id: string;
+}
+
+export interface Invite {
+  id: string;
+  email: string;
+  token: string;
+  invited_by: string;
+  accepted_at: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export const admin = {
+  stats: () => request<AdminStats>('/admin/stats'),
+  users: () => request<AdminUser[]>('/admin/users'),
+  getUser: (id: string) => request<AdminUser>(`/admin/users/${id}`),
+  updateUser: (id: string, data: { is_active?: boolean; is_admin?: boolean; storage_limit_bytes?: number }) =>
+    request<AdminUser>(`/admin/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  documents: () => request<AdminDocument[]>('/admin/documents'),
+  deleteDocument: (id: string) => request<void>(`/admin/documents/${id}`, { method: 'DELETE' }),
+  invites: () => request<Invite[]>('/admin/invites'),
+  createInvite: (email: string, expires_in_days = 7) =>
+    request<Invite>('/admin/invites', { method: 'POST', body: JSON.stringify({ email, expires_in_days }) }),
+  revokeInvite: (id: string) => request<void>(`/admin/invites/${id}`, { method: 'DELETE' }),
+  settings: () => request<{ registration_mode: string }>('/admin/settings'),
+  updateSettings: (data: { registration_mode?: string }) =>
+    request<{ registration_mode: string }>('/admin/settings', { method: 'PATCH', body: JSON.stringify(data) }),
+};
+
 // Types
 export interface User {
   id: string;
   email: string;
   display_name: string | null;
+  is_admin: boolean;
   storage_used_bytes: number;
   storage_limit_bytes: number;
   created_at: string;

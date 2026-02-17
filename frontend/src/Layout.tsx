@@ -1,7 +1,7 @@
 import { NavLink, Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from './auth';
 
-const navItems = [
+const baseNavItems = [
   { to: '/', label: 'Documents' },
   { to: '/search', label: 'Search' },
   { to: '/api-keys', label: 'API Keys' },
@@ -14,6 +14,10 @@ export default function Layout() {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-400">Loading...</div>;
   }
   if (!user) return <Navigate to="/login" />;
+
+  const navItems = user.is_admin
+    ? [...baseNavItems, { to: '/admin', label: 'Admin' }]
+    : baseNavItems;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">

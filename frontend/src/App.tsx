@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Documents from './pages/Documents';
 import Search from './pages/Search';
 import ApiKeys from './pages/ApiKeys';
+import Admin from './pages/Admin';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route index element={<Documents />} />
             <Route path="/search" element={<Search />} />
             <Route path="/api-keys" element={<ApiKeys />} />
+            <Route path="/admin" element={<Admin />} />
           </Route>
         </Routes>
       </AuthProvider>
