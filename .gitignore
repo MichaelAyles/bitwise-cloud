@@ -32,8 +32,9 @@ ENV/
 *.swo
 *~
 
-# Project specific
-docs/
+# Project specific (docs/* = ingested PDFs, but keep deploy guide)
+docs/*
+!docs/deploy.md
 index/
 *.db
 *.faiss
