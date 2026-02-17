@@ -1,0 +1,99 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bitwise}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-bitwise}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bitwise}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bitwise}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bitwise}
+      SYNC_DATABASE_URL: postgresql://${POSTGRES_USER:-bitwise}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bitwise}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET: ${JWT_SECRET}
+      UPLOAD_DIR: /data/uploads
+      INDEX_DIR: /data/indices
+      EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
+      MAX_UPLOAD_SIZE_MB: "100"
+      PUBLIC_HOST: ${PUBLIC_HOST:-https://bitwise.your-tailscale.ts.net}
+    volumes:
+      - upload_data:/data/uploads
+      - index_data:/data/indices
+      - model_cache:/root/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
+    environment:
+      PYTHONPATH: /app
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bitwise}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bitwise}
+      SYNC_DATABASE_URL: postgresql://${POSTGRES_USER:-bitwise}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bitwise}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      UPLOAD_DIR: /data/uploads
+      INDEX_DIR: /data/indices
+      EMBEDDING_MODEL: BAAI/bge-small-en-v1.5
+    volumes:
+      - upload_data:/data/uploads
+      - index_data:/data/indices
+      - model_cache:/root/.cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./frontend/dist:/srv/frontend
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  upload_data:
+  index_data:
+  model_cache:
+  caddy_data:
+  caddy_config:
