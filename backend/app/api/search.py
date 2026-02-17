@@ -58,7 +58,9 @@ async def search_docs(
     from app.engine.adapter import search_documents
 
     index_dir = Path(settings.index_dir) / str(user.id)
-    hits = search_documents(index_dir, doc_ids, doc_titles, body.query, top_k=body.top_k)
+    hits = search_documents(
+        index_dir, doc_ids, doc_titles, body.query, top_k=body.top_k
+    )
 
     results = [
         SearchResult(
@@ -132,7 +134,9 @@ async def api_search_docs(
     from app.engine.adapter import search_documents
 
     index_dir = Path(settings.index_dir) / str(auth.user.id)
-    hits = search_documents(index_dir, doc_ids, doc_titles, body.query, top_k=body.top_k)
+    hits = search_documents(
+        index_dir, doc_ids, doc_titles, body.query, top_k=body.top_k
+    )
 
     results = [
         SearchResult(

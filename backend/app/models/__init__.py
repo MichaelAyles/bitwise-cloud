@@ -5,4 +5,12 @@ from app.models.ingestion_job import IngestionJob
 from app.models.invite import Invite
 from app.models.system_setting import SystemSetting
 
-__all__ = ["User", "Document", "ApiKey", "ApiKeyDocument", "IngestionJob", "Invite", "SystemSetting"]
+__all__ = [
+    "User",
+    "Document",
+    "ApiKey",
+    "ApiKeyDocument",
+    "IngestionJob",
+    "Invite",
+    "SystemSetting",
+]

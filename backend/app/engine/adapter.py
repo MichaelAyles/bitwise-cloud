@@ -162,7 +162,11 @@ class IngestionPipeline:
 
 def remove_document_indices(index_dir: Path, doc_id: str):
     """Remove all index files for a document."""
-    for pattern in [f"vectors_{doc_id}.faiss", f"vectors_{doc_id}.ids", f"metadata_{doc_id}.db"]:
+    for pattern in [
+        f"vectors_{doc_id}.faiss",
+        f"vectors_{doc_id}.ids",
+        f"metadata_{doc_id}.db",
+    ]:
         path = index_dir / pattern
         if path.exists():
             path.unlink()
@@ -245,17 +249,19 @@ def search_documents(
                     except (json.JSONDecodeError, TypeError):
                         metadata = {}
 
-                all_hits.append(SearchHit(
-                    chunk_id=chunk_id,
-                    score=combined,
-                    text=chunk_data.get("text", ""),
-                    doc_id=doc_id,
-                    document_title=doc_titles.get(doc_id, ""),
-                    page_start=chunk_data.get("page_start", 0),
-                    page_end=chunk_data.get("page_end", 0),
-                    section=(metadata or {}).get("section_title"),
-                    structured_data=structured,
-                ))
+                all_hits.append(
+                    SearchHit(
+                        chunk_id=chunk_id,
+                        score=combined,
+                        text=chunk_data.get("text", ""),
+                        doc_id=doc_id,
+                        document_title=doc_titles.get(doc_id, ""),
+                        page_start=chunk_data.get("page_start", 0),
+                        page_end=chunk_data.get("page_end", 0),
+                        section=(metadata or {}).get("section_title"),
+                        structured_data=structured,
+                    )
+                )
 
         ms.close()
 

@@ -25,7 +25,9 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def _get_registration_mode(db: AsyncSession) -> str:
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "registration_mode"))
+    result = await db.execute(
+        select(SystemSetting).where(SystemSetting.key == "registration_mode")
+    )
     setting = result.scalar_one_or_none()
     return setting.value if setting else "invite_only"
 
@@ -36,33 +38,54 @@ async def public_settings(db: AsyncSession = Depends(get_db)):
     return SettingsResponse(registration_mode=mode)
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)):
+@router.post(
+    "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
+)
+async def register(
+    body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)
+):
     mode = await _get_registration_mode(db)
 
     invite = None
     if mode == "invite_only":
         if not body.invite_token:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Registration is invite-only. An invite token is required.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Registration is invite-only. An invite token is required.",
+            )
 
-        result = await db.execute(select(Invite).where(Invite.token == body.invite_token))
+        result = await db.execute(
+            select(Invite).where(Invite.token == body.invite_token)
+        )
         invite = result.scalar_one_or_none()
 
         if invite is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid invite token")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid invite token"
+            )
 
         if invite.accepted_at is not None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite has already been used")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invite has already been used",
+            )
 
         if invite.expires_at < datetime.now(timezone.utc):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invite has expired")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Invite has expired"
+            )
 
         if invite.email.lower() != body.email.lower():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email does not match invite")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email does not match invite",
+            )
 
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Email already registered"
+        )
 
     user = User(
         email=body.email,
@@ -95,15 +118,21 @@ async def register(body: RegisterRequest, response: Response, db: AsyncSession =
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
+async def login(
+    body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
+):
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
     if user is None or not verify_password(body.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
+        )
 
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled"
+        )
 
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
@@ -133,16 +162,25 @@ async def refresh(
         token = credentials.credentials
 
     if token is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token provided"
+        )
 
     user_id = decode_token(token, expected_type="refresh")
     if user_id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
 
-    result = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.is_active == True)
+    )
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
 
     access_token = create_access_token(user.id)
     new_refresh_token = create_refresh_token(user.id)

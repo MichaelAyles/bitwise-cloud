@@ -12,7 +12,11 @@ from app.database import get_db
 from app.models.document import Document
 from app.models.ingestion_job import IngestionJob
 from app.models.user import User
-from app.schemas.document import DocumentResponse, DocumentUpdate, IngestionProgressResponse
+from app.schemas.document import (
+    DocumentResponse,
+    DocumentUpdate,
+    IngestionProgressResponse,
+)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -20,7 +24,9 @@ PDF_MAGIC = b"%PDF"
 MAX_UPLOAD_BYTES = settings.max_upload_size_mb * 1024 * 1024
 
 
-@router.post("/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED
+)
 async def upload_document(
     file: UploadFile,
     user: User = Depends(get_current_user),
@@ -32,19 +38,28 @@ async def upload_document(
     content = await file.read()
 
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=400, detail=f"File too large (max {settings.max_upload_size_mb}MB)")
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large (max {settings.max_upload_size_mb}MB)",
+        )
 
     if not content[:4].startswith(PDF_MAGIC):
-        raise HTTPException(status_code=400, detail="File does not appear to be a valid PDF")
+        raise HTTPException(
+            status_code=400, detail="File does not appear to be a valid PDF"
+        )
 
     file_hash = hashlib.sha256(content).hexdigest()
 
     # Check for duplicate
     existing = await db.execute(
-        select(Document).where(Document.user_id == user.id, Document.file_hash == file_hash)
+        select(Document).where(
+            Document.user_id == user.id, Document.file_hash == file_hash
+        )
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="This document has already been uploaded")
+        raise HTTPException(
+            status_code=409, detail="This document has already been uploaded"
+        )
 
     doc_id = uuid.uuid4()
     upload_dir = Path(settings.upload_dir) / str(user.id)
@@ -89,7 +104,9 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(Document).where(Document.user_id == user.id).order_by(Document.created_at.desc())
+        select(Document)
+        .where(Document.user_id == user.id)
+        .order_by(Document.created_at.desc())
     )
     return result.scalars().all()
 
@@ -184,7 +201,13 @@ async def get_ingestion_progress(
             )
 
     # Fall back to document status
-    progress_map = {"pending": 0, "ingesting": 10, "ready": 100, "failed": 0, "removing": 0}
+    progress_map = {
+        "pending": 0,
+        "ingesting": 10,
+        "ready": 100,
+        "failed": 0,
+        "removing": 0,
+    }
     return IngestionProgressResponse(
         status=doc.status,
         progress_percent=progress_map.get(doc.status, 0),

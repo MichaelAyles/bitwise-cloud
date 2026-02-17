@@ -29,19 +29,26 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 # --- Stats ---
 
+
 @router.get("/stats", response_model=StatsResponse)
 async def get_stats(
     admin: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     total_users = (await db.execute(select(func.count(User.id)))).scalar() or 0
-    active_users = (await db.execute(select(func.count(User.id)).where(User.is_active == True))).scalar() or 0
+    active_users = (
+        await db.execute(select(func.count(User.id)).where(User.is_active == True))
+    ).scalar() or 0
     total_docs = (await db.execute(select(func.count(Document.id)))).scalar() or 0
-    total_storage = (await db.execute(select(func.coalesce(func.sum(User.storage_used_bytes), 0)))).scalar() or 0
+    total_storage = (
+        await db.execute(select(func.coalesce(func.sum(User.storage_used_bytes), 0)))
+    ).scalar() or 0
 
-    status_rows = (await db.execute(
-        select(Document.status, func.count(Document.id)).group_by(Document.status)
-    )).all()
+    status_rows = (
+        await db.execute(
+            select(Document.status, func.count(Document.id)).group_by(Document.status)
+        )
+    ).all()
     documents_by_status = {row[0]: row[1] for row in status_rows}
 
     return StatsResponse(
@@ -54,6 +61,7 @@ async def get_stats(
 
 
 # --- Users ---
+
 
 @router.get("/users", response_model=list[AdminUserResponse])
 async def list_users(
@@ -109,10 +117,18 @@ async def get_user(
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
 
-    doc_count = (await db.execute(select(func.count(Document.id)).where(Document.user_id == user_id))).scalar() or 0
-    key_count = (await db.execute(select(func.count(ApiKey.id)).where(ApiKey.user_id == user_id))).scalar() or 0
+    doc_count = (
+        await db.execute(
+            select(func.count(Document.id)).where(Document.user_id == user_id)
+        )
+    ).scalar() or 0
+    key_count = (
+        await db.execute(select(func.count(ApiKey.id)).where(ApiKey.user_id == user_id))
+    ).scalar() or 0
 
     return AdminUserResponse(
         id=user.id,
@@ -138,7 +154,9 @@ async def update_user(
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
 
     if body.is_active is not None:
         user.is_active = body.is_active
@@ -150,8 +168,14 @@ async def update_user(
     await db.commit()
     await db.refresh(user)
 
-    doc_count = (await db.execute(select(func.count(Document.id)).where(Document.user_id == user_id))).scalar() or 0
-    key_count = (await db.execute(select(func.count(ApiKey.id)).where(ApiKey.user_id == user_id))).scalar() or 0
+    doc_count = (
+        await db.execute(
+            select(func.count(Document.id)).where(Document.user_id == user_id)
+        )
+    ).scalar() or 0
+    key_count = (
+        await db.execute(select(func.count(ApiKey.id)).where(ApiKey.user_id == user_id))
+    ).scalar() or 0
 
     return AdminUserResponse(
         id=user.id,
@@ -168,6 +192,7 @@ async def update_user(
 
 
 # --- Documents ---
+
 
 @router.get("/documents", response_model=list[AdminDocumentResponse])
 async def list_documents(
@@ -207,13 +232,16 @@ async def delete_document(
     result = await db.execute(select(Document).where(Document.id == doc_id))
     doc = result.scalar_one_or_none()
     if not doc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+        )
 
     await db.delete(doc)
     await db.commit()
 
 
 # --- Invites ---
+
 
 @router.get("/invites", response_model=list[InviteResponse])
 async def list_invites(
@@ -224,21 +252,31 @@ async def list_invites(
     return result.scalars().all()
 
 
-@router.post("/invites", response_model=InviteResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/invites", response_model=InviteResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_invite(
     body: InviteCreate,
     admin: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
     # Check for existing pending invite
-    existing = await db.execute(select(Invite).where(Invite.email == body.email, Invite.accepted_at == None))
+    existing = await db.execute(
+        select(Invite).where(Invite.email == body.email, Invite.accepted_at == None)
+    )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pending invite already exists for this email")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Pending invite already exists for this email",
+        )
 
     # Check if user already registered
     existing_user = await db.execute(select(User).where(User.email == body.email))
     if existing_user.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User with this email already exists")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="User with this email already exists",
+        )
 
     invite = Invite(
         email=body.email,
@@ -262,10 +300,15 @@ async def revoke_invite(
     result = await db.execute(select(Invite).where(Invite.id == invite_id))
     invite = result.scalar_one_or_none()
     if not invite:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found"
+        )
 
     if invite.accepted_at is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot revoke an accepted invite")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot revoke an accepted invite",
+        )
 
     await db.delete(invite)
     await db.commit()
@@ -273,14 +316,19 @@ async def revoke_invite(
 
 # --- Settings ---
 
+
 @router.get("/settings", response_model=SettingsResponse)
 async def get_settings(
     admin: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "registration_mode"))
+    result = await db.execute(
+        select(SystemSetting).where(SystemSetting.key == "registration_mode")
+    )
     setting = result.scalar_one_or_none()
-    return SettingsResponse(registration_mode=setting.value if setting else "invite_only")
+    return SettingsResponse(
+        registration_mode=setting.value if setting else "invite_only"
+    )
 
 
 @router.patch("/settings", response_model=SettingsResponse)
@@ -291,9 +339,14 @@ async def update_settings(
 ):
     if body.registration_mode is not None:
         if body.registration_mode not in ("open", "invite_only"):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid registration mode. Must be 'open' or 'invite_only'")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid registration mode. Must be 'open' or 'invite_only'",
+            )
 
-        result = await db.execute(select(SystemSetting).where(SystemSetting.key == "registration_mode"))
+        result = await db.execute(
+            select(SystemSetting).where(SystemSetting.key == "registration_mode")
+        )
         setting = result.scalar_one_or_none()
         if setting:
             setting.value = body.registration_mode
@@ -302,6 +355,10 @@ async def update_settings(
 
     await db.commit()
 
-    result = await db.execute(select(SystemSetting).where(SystemSetting.key == "registration_mode"))
+    result = await db.execute(
+        select(SystemSetting).where(SystemSetting.key == "registration_mode")
+    )
     setting = result.scalar_one_or_none()
-    return SettingsResponse(registration_mode=setting.value if setting else "invite_only")
+    return SettingsResponse(
+        registration_mode=setting.value if setting else "invite_only"
+    )

@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 class JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         log = {
-            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(
+                record.created, tz=timezone.utc
+            ).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
@@ -35,7 +37,9 @@ def setup_logging():
     if use_json:
         handler.setFormatter(JSONFormatter())
     else:
-        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
 
     root.addHandler(handler)
 

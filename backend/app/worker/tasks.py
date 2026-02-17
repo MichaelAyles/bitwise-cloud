@@ -48,8 +48,14 @@ def ingest_document(self, document_id: str):
         doc.ingestion_started_at = datetime.now(timezone.utc)
         db.commit()
 
-        pdf_path = Path(os.environ.get("UPLOAD_DIR", "/data/uploads")) / str(doc.user_id) / f"{doc.id}.pdf"
-        index_dir = Path(os.environ.get("INDEX_DIR", "/data/indices")) / str(doc.user_id)
+        pdf_path = (
+            Path(os.environ.get("UPLOAD_DIR", "/data/uploads"))
+            / str(doc.user_id)
+            / f"{doc.id}.pdf"
+        )
+        index_dir = Path(os.environ.get("INDEX_DIR", "/data/indices")) / str(
+            doc.user_id
+        )
 
         if not pdf_path.exists():
             doc.status = "failed"
@@ -58,7 +64,9 @@ def ingest_document(self, document_id: str):
             return
 
         def on_progress(percent: int, message: str):
-            self.update_state(state="PROGRESS", meta={"percent": percent, "stage": message})
+            self.update_state(
+                state="PROGRESS", meta={"percent": percent, "stage": message}
+            )
             logger.info("Ingestion %s: %d%% - %s", document_id, percent, message)
 
         from app.engine.adapter import IngestionPipeline
@@ -119,17 +127,25 @@ def remove_document(self, document_id: str):
         # Remove index files
         from app.engine.adapter import remove_document_indices
 
-        index_dir = Path(os.environ.get("INDEX_DIR", "/data/indices")) / str(doc.user_id)
+        index_dir = Path(os.environ.get("INDEX_DIR", "/data/indices")) / str(
+            doc.user_id
+        )
         remove_document_indices(index_dir, str(doc.id))
 
         # Remove PDF
-        pdf_path = Path(os.environ.get("UPLOAD_DIR", "/data/uploads")) / str(doc.user_id) / f"{doc.id}.pdf"
+        pdf_path = (
+            Path(os.environ.get("UPLOAD_DIR", "/data/uploads"))
+            / str(doc.user_id)
+            / f"{doc.id}.pdf"
+        )
         if pdf_path.exists():
             pdf_path.unlink()
 
         # Update storage and delete record
         if user:
-            user.storage_used_bytes = max(0, user.storage_used_bytes - doc.file_size_bytes)
+            user.storage_used_bytes = max(
+                0, user.storage_used_bytes - doc.file_size_bytes
+            )
 
         db.delete(doc)
         db.commit()

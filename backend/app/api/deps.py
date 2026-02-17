@@ -21,12 +21,18 @@ async def get_current_user(
 ) -> User:
     user_id = decode_token(credentials.credentials, expected_type="access")
     if user_id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
+        )
 
-    result = await db.execute(select(User).where(User.id == user_id, User.is_active == True))
+    result = await db.execute(
+        select(User).where(User.id == user_id, User.is_active == True)
+    )
     user = result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
 
     return user
 
@@ -35,7 +41,9 @@ async def get_admin_user(
     user: User = Depends(get_current_user),
 ) -> User:
     if not user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
     return user
 
 
@@ -55,27 +63,41 @@ async def get_api_key_auth(
     """Authenticate via X-API-Key header."""
     raw_key = request.headers.get("X-API-Key")
     if not raw_key:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-API-Key header")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing X-API-Key header"
+        )
 
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-    result = await db.execute(select(ApiKey).where(ApiKey.key_hash == key_hash, ApiKey.is_active == True))
+    result = await db.execute(
+        select(ApiKey).where(ApiKey.key_hash == key_hash, ApiKey.is_active == True)
+    )
     api_key = result.scalar_one_or_none()
 
     if api_key is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key"
+        )
 
     if api_key.expires_at and api_key.expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="API key expired"
+        )
 
     # Load user
-    user_result = await db.execute(select(User).where(User.id == api_key.user_id, User.is_active == True))
+    user_result = await db.execute(
+        select(User).where(User.id == api_key.user_id, User.is_active == True)
+    )
     user = user_result.scalar_one_or_none()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
+        )
 
     # Load allowed document IDs
     doc_links = await db.execute(
-        select(ApiKeyDocument.document_id).where(ApiKeyDocument.api_key_id == api_key.id)
+        select(ApiKeyDocument.document_id).where(
+            ApiKeyDocument.api_key_id == api_key.id
+        )
     )
     allowed_doc_ids = [row[0] for row in doc_links.fetchall()]
 

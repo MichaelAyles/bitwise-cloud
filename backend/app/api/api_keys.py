@@ -22,7 +22,9 @@ from app.schemas.api_key import (
 router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
 
-def _make_response(api_key: ApiKey, doc_ids: list[uuid.UUID], full_key: str | None = None) -> dict:
+def _make_response(
+    api_key: ApiKey, doc_ids: list[uuid.UUID], full_key: str | None = None
+) -> dict:
     data = {
         "id": api_key.id,
         "key_prefix": api_key.key_prefix,
@@ -39,7 +41,9 @@ def _make_response(api_key: ApiKey, doc_ids: list[uuid.UUID], full_key: str | No
     return data
 
 
-@router.post("", response_model=ApiKeyCreatedResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=ApiKeyCreatedResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_api_key(
     body: ApiKeyCreate,
     user: User = Depends(get_current_user),
@@ -57,7 +61,9 @@ async def create_api_key(
         valid_ids = {row[0] for row in result.fetchall()}
         invalid = set(body.document_ids) - valid_ids
         if invalid:
-            raise HTTPException(status_code=400, detail=f"Invalid or not-ready document IDs: {invalid}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid or not-ready document IDs: {invalid}"
+            )
 
     # Generate key: bw_<32 random hex chars>
     raw_key = f"bw_{secrets.token_hex(32)}"
@@ -90,14 +96,18 @@ async def list_api_keys(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(ApiKey).where(ApiKey.user_id == user.id).order_by(ApiKey.created_at.desc())
+        select(ApiKey)
+        .where(ApiKey.user_id == user.id)
+        .order_by(ApiKey.created_at.desc())
     )
     keys = result.scalars().all()
 
     responses = []
     for key in keys:
         doc_links = await db.execute(
-            select(ApiKeyDocument.document_id).where(ApiKeyDocument.api_key_id == key.id)
+            select(ApiKeyDocument.document_id).where(
+                ApiKeyDocument.api_key_id == key.id
+            )
         )
         doc_ids = [row[0] for row in doc_links.fetchall()]
         responses.append(_make_response(key, doc_ids))
@@ -119,7 +129,9 @@ async def get_api_key(
         raise HTTPException(status_code=404, detail="API key not found")
 
     doc_links = await db.execute(
-        select(ApiKeyDocument.document_id).where(ApiKeyDocument.api_key_id == api_key.id)
+        select(ApiKeyDocument.document_id).where(
+            ApiKeyDocument.api_key_id == api_key.id
+        )
     )
     doc_ids = [row[0] for row in doc_links.fetchall()]
     return _make_response(api_key, doc_ids)
@@ -148,7 +160,9 @@ async def update_api_key(
     await db.refresh(api_key)
 
     doc_links = await db.execute(
-        select(ApiKeyDocument.document_id).where(ApiKeyDocument.api_key_id == api_key.id)
+        select(ApiKeyDocument.document_id).where(
+            ApiKeyDocument.api_key_id == api_key.id
+        )
     )
     doc_ids = [row[0] for row in doc_links.fetchall()]
     return _make_response(api_key, doc_ids)
@@ -180,7 +194,9 @@ async def update_api_key_documents(
         valid_ids = {row[0] for row in valid_result.fetchall()}
         invalid = set(body.document_ids) - valid_ids
         if invalid:
-            raise HTTPException(status_code=400, detail=f"Invalid or not-ready document IDs: {invalid}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid or not-ready document IDs: {invalid}"
+            )
 
     # Replace all document links
     await db.execute(

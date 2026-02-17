@@ -46,18 +46,22 @@ def _resolve_api_key(raw_key: str) -> tuple[uuid.UUID, list[uuid.UUID]]:
     db = _get_sync_session()
     try:
         key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-        api_key = db.query(ApiKey).filter(
-            ApiKey.key_hash == key_hash, ApiKey.is_active == True
-        ).first()
+        api_key = (
+            db.query(ApiKey)
+            .filter(ApiKey.key_hash == key_hash, ApiKey.is_active == True)
+            .first()
+        )
 
         if not api_key:
             raise ValueError("Invalid API key")
         if api_key.expires_at and api_key.expires_at < datetime.now(timezone.utc):
             raise ValueError("API key expired")
 
-        doc_links = db.query(ApiKeyDocument.document_id).filter(
-            ApiKeyDocument.api_key_id == api_key.id
-        ).all()
+        doc_links = (
+            db.query(ApiKeyDocument.document_id)
+            .filter(ApiKeyDocument.api_key_id == api_key.id)
+            .all()
+        )
         allowed_doc_ids = [row[0] for row in doc_links]
 
         # Update usage
@@ -164,9 +168,7 @@ def find_register(
     from app.engine.adapter import find_register_in_documents
 
     index_dir = Path(settings.index_dir) / str(user_id)
-    hit = find_register_in_documents(
-        index_dir, doc_ids, doc_titles, name, peripheral
-    )
+    hit = find_register_in_documents(index_dir, doc_ids, doc_titles, name, peripheral)
 
     if not hit:
         return f"Register '{name}' not found."
