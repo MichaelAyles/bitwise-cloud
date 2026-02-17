@@ -3,10 +3,12 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import {
   admin,
+  health,
   type AdminStats,
   type AdminUser,
   type AdminDocument,
   type Invite,
+  type HealthStatus,
   ApiError,
 } from '../api';
 
@@ -31,10 +33,12 @@ function DashboardTab() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [regMode, setRegMode] = useState('');
   const [toggling, setToggling] = useState(false);
+  const [sysHealth, setSysHealth] = useState<HealthStatus | null>(null);
 
   useEffect(() => {
     admin.stats().then(setStats);
     admin.settings().then(s => setRegMode(s.registration_mode));
+    health.check().then(setSysHealth).catch(() => setSysHealth({ status: 'degraded', checks: { api: 'unreachable' } }));
   }, []);
 
   const toggleRegMode = async () => {
@@ -58,6 +62,25 @@ function DashboardTab() {
         <StatCard label="Total Documents" value={stats.total_documents} />
         <StatCard label="Storage Used" value={formatBytes(stats.total_storage_bytes)} />
       </div>
+
+      {sysHealth && (
+        <div>
+          <h3 className="text-sm font-medium text-zinc-400 mb-2">System Health</h3>
+          <div className="flex gap-3 flex-wrap">
+            {Object.entries(sysHealth.checks).map(([name, status]) => (
+              <span key={name} className={`flex items-center gap-2 bg-zinc-900 border rounded px-3 py-1.5 text-sm ${
+                status === 'ok' ? 'border-zinc-800' : 'border-red-800'
+              }`}>
+                <span className={`inline-block w-2 h-2 rounded-full ${
+                  status === 'ok' ? 'bg-green-400' : 'bg-red-400'
+                }`} />
+                <span className="text-zinc-300">{name}</span>
+                {status !== 'ok' && <span className="text-red-400 text-xs ml-1">({status})</span>}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {Object.keys(stats.documents_by_status).length > 0 && (
         <div>

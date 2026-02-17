@@ -211,6 +211,18 @@ export interface Invite {
   expires_at: string;
 }
 
+export interface HealthStatus {
+  status: 'healthy' | 'degraded';
+  checks: Record<string, string>;
+}
+
+export const health = {
+  check: async (): Promise<HealthStatus> => {
+    const res = await fetch(`${BASE}/health`);
+    return res.json();
+  },
+};
+
 export const admin = {
   stats: () => request<AdminStats>('/admin/stats'),
   users: () => request<AdminUser[]>('/admin/users'),

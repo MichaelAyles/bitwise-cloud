@@ -2,6 +2,10 @@ import os
 
 from celery import Celery
 
+from app.logging_config import setup_logging
+
+setup_logging()
+
 redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
 celery = Celery("bitwise", broker=redis_url, backend=redis_url)

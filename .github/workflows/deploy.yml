@@ -10,7 +10,26 @@ env:
   CADDY_IMAGE: ghcr.io/michaelayles/bitwise-cloud-caddy
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: pip install -e "backend[dev]"
+
+      - name: Check formatting
+        run: black --check backend/app/
+
+      - name: Type check
+        run: mypy backend/app/ --ignore-missing-imports
+
   build:
+    needs: lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -46,6 +65,7 @@ jobs:
           file: Dockerfile.caddy
           push: true
           tags: ${{ env.CADDY_IMAGE }}:${{ github.sha }}
+          build-args: GIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

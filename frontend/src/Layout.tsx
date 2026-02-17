@@ -20,7 +20,7 @@ export default function Layout() {
     : baseNavItems;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-white flex flex-col">
       <header className="border-b border-zinc-800">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-8">
@@ -42,9 +42,15 @@ export default function Layout() {
           </div>
         </div>
       </header>
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 flex-1 w-full">
         <Outlet />
       </main>
+      <footer className="border-t border-zinc-800 mt-auto">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between text-xs text-zinc-600">
+          <span>BitWise Cloud</span>
+          <span>{__GIT_SHA__ !== 'dev' ? __GIT_SHA__.slice(0, 7) : 'dev'}</span>
+        </div>
+      </footer>
     </div>
   );
 }

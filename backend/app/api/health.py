@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.database import engine
@@ -32,4 +33,5 @@ async def health():
         checks["redis"] = f"error: {e}"
 
     all_ok = all(v == "ok" for v in checks.values())
-    return {"status": "healthy" if all_ok else "degraded", "checks": checks}
+    body = {"status": "healthy" if all_ok else "degraded", "checks": checks}
+    return JSONResponse(content=body, status_code=200 if all_ok else 503)

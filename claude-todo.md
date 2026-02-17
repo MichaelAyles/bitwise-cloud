@@ -10,20 +10,20 @@ Tasks for Claude to implement in upcoming sessions.
 
 ## CI/CD
 
-- [ ] Add linting step to GitHub Actions (black --check, mypy)
-- [ ] Add `poetry run pytest` to CI before the Docker build step
+- [x] Add linting step to GitHub Actions (black --check, mypy)
+- [ ] Add `pytest` to CI (needs test fixtures that work without full ML model download)
 - [ ] Consider caching Python dependencies in CI (pip cache or poetry cache layer)
 
 ## Backend
 
-- [ ] Return HTTP 503 from `/api/health` when status is `"degraded"` (currently returns 200 regardless) so UptimeRobot catches dependency failures
-- [ ] Add structured logging (JSON format) to backend and worker for easier log parsing
+- [x] Return HTTP 503 from `/api/health` when status is `"degraded"`
+- [x] Add structured logging (JSON format) to backend and worker
 - [ ] Add request ID middleware for tracing requests across backend and worker
 
 ## Frontend
 
-- [ ] Add health status indicator in the admin panel (poll `/api/health`)
-- [ ] Add version/commit SHA display in the footer (inject at build time from `VITE_GIT_SHA`)
+- [x] Add health status indicator in the admin panel
+- [x] Add version/commit SHA display in the footer
 
 ## MCP Plugin
 
