@@ -19,14 +19,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install backend dependencies
-        run: pip install -e "backend[dev]"
+      - name: Install lint tools
+        run: pip install black mypy
 
       - name: Check formatting
         run: black --check backend/app/
 
       - name: Type check
-        run: mypy backend/app/ --ignore-missing-imports
+        run: mypy backend/app/ --ignore-missing-imports --install-types --non-interactive
 
   build:
     needs: lint
