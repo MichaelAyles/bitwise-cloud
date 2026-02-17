@@ -17,7 +17,7 @@ services:
           memory: 256M
 
   backend:
-    image: ghcr.io/michaelayles/bitwise-cloud-backend:latest
+    image: ghcr.io/michaelayles/bitwise-cloud-backend:${BACKEND_TAG:-latest}
     build: !reset null
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
@@ -31,7 +31,7 @@ services:
           memory: 1G
 
   worker:
-    image: ghcr.io/michaelayles/bitwise-cloud-backend:latest
+    image: ghcr.io/michaelayles/bitwise-cloud-backend:${BACKEND_TAG:-latest}
     build: !reset null
     healthcheck:
       test: ["CMD", "celery", "-A", "app.worker.celery_app", "inspect", "ping"]
@@ -45,7 +45,7 @@ services:
           memory: 4G
 
   caddy:
-    image: ghcr.io/michaelayles/bitwise-cloud-caddy:latest
+    image: ghcr.io/michaelayles/bitwise-cloud-caddy:${CADDY_TAG:-latest}
     build: !reset null
     ports: !reset null
 

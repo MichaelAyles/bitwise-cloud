@@ -40,8 +40,13 @@ echo "YOUR_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 sudo mkdir -p /opt/bitwise-cloud/backups
 cd /opt/bitwise-cloud
 
-# Copy compose files and .env
-# Edit .env with production values (use `openssl rand -base64 32` for secrets)
+# Copy compose files, .env, and scripts/
+# Generate secrets and edit .env:
+#   openssl rand -base64 32   (for POSTGRES_PASSWORD, REDIS_PASSWORD)
+#   openssl rand -base64 64   (for JWT_SECRET)
+
+# Lock down the secrets file
+chmod 600 .env
 
 docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
@@ -52,11 +57,10 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```bash
 docker compose ps                          # All containers healthy
 docker compose logs cloudflared            # Tunnel connected
-curl -s http://localhost:80/api/health     # Won't work (no host ports) — check via:
 docker compose exec backend curl -s http://localhost:8000/api/health
 ```
 
-Then visit `https://app.bitwise.cloud` — should load the app.
+Then visit `https://app.bitwise.cloud` — should load the app. The `/api/health` endpoint checks Postgres and Redis connectivity and returns `"healthy"` or `"degraded"`.
 
 ### 6. Monitoring
 
@@ -70,9 +74,21 @@ chmod +x scripts/backup-postgres.sh
 echo "0 3 * * * /opt/bitwise-cloud/scripts/backup-postgres.sh" | crontab -
 ```
 
+Test a restore periodically — an untested backup is not a backup:
+
+```bash
+# Restore to a throwaway database to verify:
+docker compose exec postgres createdb -U bitwise bitwise_test
+gunzip -c backups/bitwise-YYYYMMDD-HHMMSS.sql.gz | \
+  docker compose exec -T postgres psql -U bitwise bitwise_test
+docker compose exec postgres dropdb -U bitwise bitwise_test
+```
+
 ## Updating
 
-Push to `main` → GitHub Actions builds images → Watchtower pulls within 60s.
+Push to `main` → GitHub Actions builds + smoke tests → pushes `:latest` → Watchtower pulls within 60s.
+
+Note: Watchtower polls on a 60s interval, so deploys are not instant. CI only tags `:latest` after the backend passes a health check smoke test, so broken builds won't reach production.
 
 To manually update:
 
@@ -81,6 +97,40 @@ cd /opt/bitwise-cloud
 docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
+
+## Rollback
+
+Every build pushes an immutable `:sha-<commit>` tag alongside `:latest`. To roll back to a known-good version:
+
+```bash
+cd /opt/bitwise-cloud
+
+# 1. Stop watchtower so it doesn't pull :latest again
+docker compose -f docker-compose.yml -f docker-compose.prod.yml stop watchtower
+
+# 2. Pin to a known-good SHA (find from GitHub Actions or `docker image ls`)
+export GOOD_SHA=abc123def456
+
+# 3. Pull and run the pinned images
+docker compose -f docker-compose.yml -f docker-compose.prod.yml pull \
+  --ignore-buildable
+# Or manually:
+docker pull ghcr.io/michaelayles/bitwise-cloud-backend:$GOOD_SHA
+docker pull ghcr.io/michaelayles/bitwise-cloud-caddy:$GOOD_SHA
+
+# 4. Override images temporarily (edit docker-compose.prod.yml or use env vars)
+BACKEND_TAG=$GOOD_SHA CADDY_TAG=$GOOD_SHA \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# 5. Fix the issue on main, push, then restart watchtower
+docker compose -f docker-compose.yml -f docker-compose.prod.yml start watchtower
+```
+
+## Scaling Notes
+
+**Alembic migrations** run on backend startup (`alembic upgrade head`). This is safe for a single backend instance. If you ever scale to multiple backend replicas, you'll need to move migrations to a separate init container or one-shot job to avoid race conditions.
+
+**Secrets**: The `.env` file contains production credentials. Keep it `chmod 600` and owned by the deploy user. Do not commit it to git.
 
 ## Troubleshooting
 

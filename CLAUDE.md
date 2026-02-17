@@ -5,57 +5,85 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
+# Development
+docker compose up --build                         # Run all services locally
+docker compose logs -f backend                    # Tail backend logs
+docker compose exec postgres psql -U bitwise bitwise  # DB shell
+
+# MCP plugin (standalone)
 poetry install                                    # Install dependencies
 poetry run mcp-embedded-docs serve                # Start MCP server (stdio)
 poetry run mcp-embedded-docs ingest PATH --title "Title"  # Ingest a PDF
 poetry run mcp-embedded-docs list                 # List indexed documents
+
+# Testing & linting
 poetry run pytest                                 # Run tests
 poetry run pytest tests/test_chunker.py -k "test_name"  # Single test
 poetry run black mcp_embedded_docs/               # Format
 poetry run mypy mcp_embedded_docs/                # Type check
+
+# Production
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
+```
+
+## Project Structure
+
+```
+backend/
+  app/
+    api/          # FastAPI route handlers (auth, documents, search, health, admin, api_keys)
+    models/       # SQLAlchemy models (user, document, ingestion_job, api_key)
+    mcp/          # MCP server endpoint
+    engine/       # Adapter bridging backend to mcp_embedded_docs engine
+    config.py     # Pydantic settings (env vars)
+    database.py   # Async SQLAlchemy engine + session
+    worker.py     # Celery app + ingestion tasks
+  alembic/        # Database migrations
+  Dockerfile      # Backend + worker image (Python 3.11, CPU PyTorch)
+frontend/         # React SPA (Vite + TypeScript)
+mcp_embedded_docs/  # Standalone MCP plugin (PDF ingestion + search engine)
+  tools/          # Tool implementations (lazy-loaded)
+  server.py       # FastMCP server entry point
+Dockerfile.caddy  # Caddy image (builds frontend, serves SPA + reverse proxy)
+Caddyfile         # Caddy config: /api/* → backend, /* → SPA
+docker-compose.yml        # Base services (postgres, redis, backend, worker, caddy)
+docker-compose.prod.yml   # Production overrides (GHCR images, cloudflared, watchtower)
 ```
 
 ## Architecture
 
-FastMCP server (`server.py`) exposing 5 tools: `search_docs`, `find_register`, `list_docs`, `ingest_docs`, `remove_docs`. Heavy imports are deferred — tool implementations live in `tools/` and only import PDF/ML dependencies when called.
+### Backend (FastAPI + Celery)
 
-### Ingestion Pipeline
+FastAPI serves the REST API at `/api/*` and MCP at `/mcp/*`. Celery workers handle async PDF ingestion. Auth is JWT-based with invite-only registration.
 
+**Key routes**: `/api/auth/*`, `/api/documents/*`, `/api/search/*`, `/api/health`, `/api/admin/*`, `/api/keys/*`
+
+The health endpoint (`/api/health`) checks Postgres and Redis connectivity, returning `"healthy"` or `"degraded"`.
+
+### MCP Engine (mcp_embedded_docs/)
+
+FastMCP server exposing 5 tools: `search_docs`, `find_register`, `list_docs`, `ingest_docs`, `remove_docs`. Heavy imports are deferred — tool implementations live in `tools/` and only import PDF/ML dependencies when called.
+
+**Ingestion pipeline**:
 ```
-PDF → pdf_parser.py (PyMuPDF: text, TOC, section hierarchy)
-    → table_detector.py (pdfplumber: find register tables on pages)
-    → table_extractor.py (parse tables into Register/BitField structures)
-    → chunker.py (semantic chunking with context prefixes)
-    → embedder.py (bge-small-en-v1.5, 384-dim, normalized)
-    → vector_store.py (FAISS IndexFlatL2) + metadata_store.py (SQLite FTS5)
-```
-
-Key chunking rules:
-- Only leaf sections are chunked (parents with subsections are skipped to avoid duplication)
-- Every chunk gets a hierarchy prefix: `[Doc > Section > Subsection]`
-- Text splits on sentence boundaries (`. `, `.\n`, `\n\n`), never mid-word
-- Register tables are never split — kept as whole chunks with both text and structured JSON
-- Chunk IDs are `{doc_id}_{md5(text)[:12]}` to prevent collisions
-
-### Search Pipeline
-
-```
-Query → HybridSearch
-        ├─ keyword_search() → SQLite FTS5 (weight: 0.4)
-        └─ semantic_search() → FAISS vectors (weight: 0.6)
-        → normalize scores 0-1, 1.2× boost for results in both channels
-        → ResultFormatter → markdown
+PDF → pdf_parser.py (PyMuPDF) → table_detector.py (pdfplumber) → table_extractor.py
+    → chunker.py (semantic chunking) → embedder.py (bge-small-en-v1.5) → FAISS + SQLite FTS5
 ```
 
-### Storage
+**Search pipeline**: Hybrid keyword (FTS5, weight 0.4) + semantic (FAISS, weight 0.6), with 1.2x boost for results in both channels.
 
-- `index/vectors.faiss` — FAISS flat index (cosine similarity via normalized L2)
-- `index/metadata.db` — SQLite with FTS5 virtual table, triggers keep FTS in sync
-- `docs/` — PDF input directory (gitignored, per-project)
+### Deployment
+
+Cloudflare Tunnel → Caddy → backend. GitHub Actions builds and pushes to GHCR on push to `main`. Watchtower auto-pulls on the production server. See `docs/deploy.md`.
+
+Alembic migrations run on backend startup. Single-instance only — needs init container if scaling replicas.
 
 ## Config
 
-`config.yaml` (optional, falls back to defaults). Pydantic models in `config.py`:
+Backend: Pydantic settings via env vars (see `.env.example`)
+
+MCP plugin: `config.yaml` (optional, falls back to defaults):
 - `chunking.target_size`: 2500 chars, `overlap`: 200 chars
 - `search.keyword_weight`: 0.4, `semantic_weight`: 0.6
 - `embeddings.model`: `BAAI/bge-small-en-v1.5`, `device`: `cpu`

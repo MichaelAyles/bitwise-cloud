@@ -1,108 +1,62 @@
-# bitwise-mcp
+# BitWise Cloud
 
-MCP server for embedded developers. Ingests PDF reference manuals (1000+ pages), extracts register definitions, and provides fast semantic search. Built with [FastMCP](https://github.com/jlowin/fastmcp) and available as a Claude Code plugin.
+Hosted platform for embedded systems documentation. Ingest PDF reference manuals, extract register definitions, and search across your datasheets with hybrid keyword + semantic retrieval. Includes a React frontend, FastAPI backend, Celery workers, and an MCP plugin for Claude Code integration.
 
 ## Features
 
-- **PDF Ingestion** - Parses large reference manuals preserving structure
-- **Register Table Extraction** - Detects and converts register definitions to structured JSON
-- **Hybrid Search** - Combines keyword matching (SQLite FTS5) with semantic similarity (FAISS)
-- **Context-Aware Chunking** - Chunks include section hierarchy prefixes (e.g. `[Manual > FlexCAN > MCR Register]`) for better retrieval
-- **Sentence-Aware Splitting** - Text splits on sentence boundaries with 1-2 sentence overlap, never mid-word
-- **Compact Output** - Formats responses to minimize token usage
+- **PDF Ingestion** — Parses large reference manuals preserving structure, extracts register tables to structured JSON
+- **Hybrid Search** — Combines keyword matching (SQLite FTS5) with semantic similarity (FAISS + bge-small-en-v1.5)
+- **Context-Aware Chunking** — Section hierarchy prefixes, sentence-aware splitting, content deduplication
+- **React Frontend** — Document management, search UI, API key management, admin panel
+- **REST API + MCP** — FastAPI backend with Celery async ingestion, plus MCP endpoint for Claude Code
+- **Auth** — JWT auth with invite-only registration, admin mode
 
-## Installation
+## Architecture
 
-### Option 1: Claude Code Plugin (Recommended)
+```
+React SPA → Caddy → FastAPI (/api/*)
+                  → MCP server (/mcp/*)
+                  → Static frontend (/*)
 
-Install directly from the Claude Code plugin marketplace:
+Celery workers → PDF parsing → Embedding → FAISS + SQLite indexing
+```
+
+**Services**: Postgres (data), Redis (queue/cache), Caddy (reverse proxy + SPA), backend (API), worker (ingestion)
+
+## Quick Start (Development)
+
+```bash
+cp .env.example .env
+# Edit .env with your values (openssl rand -base64 32 for secrets)
+docker compose up --build
+```
+
+App runs at `http://localhost:80`. Backend API at `http://localhost:80/api/`.
+
+## Production Deployment
+
+Deploys via Cloudflare Tunnel to a Linux box. Push to `main` → GitHub Actions builds images → Watchtower auto-pulls on the server.
+
+See [docs/deploy.md](docs/deploy.md) for full setup guide.
+
+```bash
+# On the production server:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+## MCP Plugin
+
+Install the Claude Code plugin for in-editor documentation search:
 
 ```bash
 claude plugin add bitwise-embedded-docs
 ```
 
-This registers the MCP server and adds `/ingest-docs` and `/search-docs` slash commands.
-
-### Option 2: Global Install
-
-Install once, use across all projects:
-
-```bash
-# From this repository directory
-pip install -e .
-
-# Then in ANY project directory where you want to use it
-claude mcp add --scope project embedded-docs python -m mcp_embedded_docs
-```
-
-Each project maintains its own isolated documentation index. When you run the server in a project, it only indexes and searches PDFs in that project's `docs/` directory.
-
-### Option 3: Poetry Install (Development)
-
-```bash
-poetry install
-
-# Add to Claude Code
-claude mcp add embedded-docs --command poetry --args "run" "mcp-embedded-docs" "serve" --cwd "<path-to-this-repo>"
-```
-
-Restart Claude Code after adding the server.
-
-## Usage
-
-Place PDFs in a `docs/` directory, then in Claude Code:
-
-```
-What PDFs are available?
-Ingest any files that haven't been ingested yet
-What's the base address for FlexCAN0?
-```
-
-### Example: Checking Available PDFs
-
-![Listing available PDFs](images/Screenshot%20(10).PNG)
-
-### Example: Searching Documentation
-
-The MCP server automatically queries the indexed documentation when you ask questions:
-
-![Documentation search in action](images/Screenshot%20(11).PNG)
-
-### CLI Usage
-
-```bash
-poetry run mcp-embedded-docs ingest docs/manual.pdf --title "MCU Manual"
-poetry run mcp-embedded-docs list  # View indexed documents
-```
-
-## MCP Tools
-
-| Tool | Description |
-|------|-------------|
-| `search_docs` | Search documentation with hybrid keyword + semantic retrieval |
-| `find_register` | Find specific register definitions by name |
-| `list_docs` | List all documentation files with status (indexed + available) |
-| `ingest_docs` | Ingest PDF documentation files into the search index |
-| `remove_docs` | Remove documents from the search index by ID |
-
-## Architecture
-
-Built on [FastMCP](https://github.com/jlowin/fastmcp) for the MCP server layer. The ingestion pipeline:
-
-1. **PDF Parsing** (PyMuPDF) - Extracts text with layout, TOC, and section hierarchy
-2. **Table Detection** (pdfplumber) - Identifies register maps, bitfield definitions, memory maps
-3. **Semantic Chunking** - Leaf-only section chunking with contextual hierarchy prefixes, sentence-aware splitting, and content-based deduplication
-4. **Embedding** (sentence-transformers, bge-small-en-v1.5) - Local embeddings, no API calls
-5. **Indexing** (FAISS + SQLite FTS5) - Hybrid vector + keyword search
+Provides `search_docs`, `find_register`, `list_docs`, `ingest_docs`, `remove_docs` tools plus `/ingest-docs` and `/search-docs` slash commands.
 
 ## Tech Stack
 
-Python 3.10+ | FastMCP | PyMuPDF | pdfplumber | sentence-transformers | FAISS | SQLite FTS5
-
-## Performance
-
-**Tested:** S32K144 Reference Manual (2,179 pages, 14MB)
-**Results:** 3min indexing, <500ms search, ~500MB memory
+Python 3.11 | FastAPI | Celery | PostgreSQL | Redis | React | Caddy | PyMuPDF | pdfplumber | sentence-transformers | FAISS | SQLite FTS5
 
 ## License
 
