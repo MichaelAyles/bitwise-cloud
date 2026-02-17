@@ -7,7 +7,7 @@ import logging
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ class IngestionPipeline:
         # 2. Detect and extract tables
         _progress(20, "Detecting register tables")
         extractor = TableExtractor(str(self.pdf_path))
-        all_tables = []
+        all_tables: list[Any] = []
         table_pages: dict[int, int] = {}
 
         with TableDetector(str(self.pdf_path)) as detector:

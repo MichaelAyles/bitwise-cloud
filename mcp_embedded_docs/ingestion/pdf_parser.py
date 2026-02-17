@@ -196,8 +196,8 @@ class PDFParser:
         if not sections:
             return []
 
-        root_sections = []
-        stack = []
+        root_sections: List[Section] = []
+        stack: List[Section] = []
 
         for section in sections:
             # Pop sections from stack that are not parents
