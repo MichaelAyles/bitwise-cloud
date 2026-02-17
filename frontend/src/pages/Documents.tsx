@@ -1,0 +1,163 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { documents, type Document, ApiError } from '../api';
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    ready: 'bg-green-900/50 text-green-400 border-green-700',
+    pending: 'bg-yellow-900/50 text-yellow-400 border-yellow-700',
+    ingesting: 'bg-blue-900/50 text-blue-400 border-blue-700',
+    failed: 'bg-red-900/50 text-red-400 border-red-700',
+    removing: 'bg-zinc-800 text-zinc-400 border-zinc-600',
+  };
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded border ${colors[status] || 'bg-zinc-800 text-zinc-400 border-zinc-600'}`}>
+      {status}
+    </span>
+  );
+}
+
+function ProgressBar({ docId }: { docId: string }) {
+  const [pct, setPct] = useState(0);
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const poll = async () => {
+      try {
+        const p = await documents.progress(docId);
+        if (!active) return;
+        setPct(p.progress_percent);
+        setMsg(p.progress_message || '');
+        if (p.status === 'ingesting' || p.status === 'pending') {
+          setTimeout(poll, 2000);
+        }
+      } catch { /* ignore */ }
+    };
+    poll();
+    return () => { active = false; };
+  }, [docId]);
+
+  return (
+    <div className="mt-2">
+      <div className="flex justify-between text-xs text-zinc-400 mb-1">
+        <span>{msg || 'Processing...'}</span>
+        <span>{pct}%</span>
+      </div>
+      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+        <div className="h-full bg-blue-500 transition-all duration-500 rounded-full" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export default function Documents() {
+  const [docs, setDocs] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await documents.list();
+      setDocs(d);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Auto-refresh while any doc is processing
+  useEffect(() => {
+    if (docs.some(d => d.status === 'pending' || d.status === 'ingesting')) {
+      const id = setInterval(load, 5000);
+      return () => clearInterval(id);
+    }
+  }, [docs, load]);
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    setUploading(true);
+    try {
+      await documents.upload(file);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this document and its indices?')) return;
+    try {
+      await documents.delete(id);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Delete failed');
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-xl font-semibold">Documents</h1>
+        <label className={`cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
+          {uploading ? 'Uploading...' : 'Upload PDF'}
+          <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
+        </label>
+      </div>
+
+      {error && <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-3 py-2 mb-4">{error}</div>}
+
+      {loading ? (
+        <p className="text-zinc-400 text-sm">Loading...</p>
+      ) : docs.length === 0 ? (
+        <div className="border border-dashed border-zinc-700 rounded-lg p-12 text-center">
+          <p className="text-zinc-400 mb-2">No documents yet</p>
+          <p className="text-zinc-500 text-sm">Upload a PDF reference manual to get started</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {docs.map(doc => (
+            <div key={doc.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-medium truncate">{doc.title}</h3>
+                    <StatusBadge status={doc.status} />
+                  </div>
+                  <div className="flex gap-4 text-xs text-zinc-500">
+                    <span>{formatBytes(doc.file_size_bytes)}</span>
+                    {doc.page_count && <span>{doc.page_count} pages</span>}
+                    {doc.chunk_count > 0 && <span>{doc.chunk_count} chunks</span>}
+                    {doc.register_count > 0 && <span>{doc.register_count} registers</span>}
+                  </div>
+                  {doc.ingestion_error && (
+                    <p className="text-xs text-red-400 mt-1">{doc.ingestion_error}</p>
+                  )}
+                  {(doc.status === 'pending' || doc.status === 'ingesting') && (
+                    <ProgressBar docId={doc.id} />
+                  )}
+                </div>
+                <button onClick={() => handleDelete(doc.id)}
+                  className="text-zinc-600 hover:text-red-400 text-sm ml-4 transition-colors">
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

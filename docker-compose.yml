@@ -77,13 +77,13 @@ services:
         condition: service_healthy
 
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - ./frontend/dist:/srv/frontend
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
