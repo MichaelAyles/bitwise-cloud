@@ -1,3 +1,4 @@
+import logging
 import time
 from dataclasses import dataclass
 
@@ -5,6 +6,8 @@ import httpx
 from jose import jwt, JWTError
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Cache JWKS for 1 hour
 _jwks_cache: dict | None = None
@@ -45,6 +48,11 @@ async def verify_shoo_token(id_token: str) -> ShooClaims:
         raise ShooVerificationError(f"Failed to fetch Shoo JWKS: {e}") from e
 
     expected_audience = f"origin:{settings.public_host}"
+    logger.info(
+        "Verifying Shoo token with audience=%s, issuer=%s",
+        expected_audience,
+        settings.shoo_issuer,
+    )
 
     try:
         payload = jwt.decode(
@@ -55,6 +63,18 @@ async def verify_shoo_token(id_token: str) -> ShooClaims:
             issuer=settings.shoo_issuer,
         )
     except JWTError as e:
+        # Decode without verification to see what claims we got
+        try:
+            unverified = jwt.get_unverified_claims(id_token)
+            logger.error(
+                "Shoo token verification failed: %s | token aud=%s, iss=%s, exp=%s",
+                e,
+                unverified.get("aud"),
+                unverified.get("iss"),
+                unverified.get("exp"),
+            )
+        except Exception:
+            logger.error("Shoo token verification failed: %s", e)
         raise ShooVerificationError(f"Invalid Shoo token: {e}") from e
 
     sub = payload.get("pairwise_sub") or payload.get("sub")
