@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useShooAuth } from '@shoojs/react';
 
+const OAUTH_PENDING_KEY = 'shoo_oauth_pending';
+
 interface GoogleSignInButtonProps {
   onToken: (token: string) => void;
   disabled: boolean;
@@ -9,25 +11,32 @@ interface GoogleSignInButtonProps {
 export default function GoogleSignInButton({ onToken, disabled }: GoogleSignInButtonProps) {
   const { identity, loading: shooLoading, signIn, clearIdentity } = useShooAuth();
   const initiated = useRef(false);
+  const handled = useRef(false);
 
-  // Clear any stale identity from a previous session on mount
+  // Restore initiated flag after full-page redirect from OAuth callback
   useEffect(() => {
-    if (!shooLoading && identity?.token && !initiated.current) {
-      clearIdentity();
+    if (sessionStorage.getItem(OAUTH_PENDING_KEY)) {
+      initiated.current = true;
+      sessionStorage.removeItem(OAUTH_PENDING_KEY);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleClick = useCallback(() => {
     initiated.current = true;
+    sessionStorage.setItem(OAUTH_PENDING_KEY, '1');
     signIn();
   }, [signIn]);
 
-  // Only fire onToken if the user actively clicked the button (initiated.current)
+  // Handle identity: fire onToken if user-initiated, clear if stale
   useEffect(() => {
-    if (!shooLoading && identity?.token && initiated.current) {
+    if (shooLoading || handled.current) return;
+    if (identity?.token && initiated.current) {
+      handled.current = true;
       onToken(identity.token);
+    } else if (identity?.token && !initiated.current) {
+      clearIdentity();
     }
-  }, [shooLoading, identity, onToken]);
+  }, [shooLoading, identity, onToken, clearIdentity]);
 
   return (
     <>

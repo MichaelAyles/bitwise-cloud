@@ -1,29 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShooAuth } from '@shoojs/react';
-import { auth, ApiError } from '../api';
-import { useAuth } from '../auth';
 
 export default function AuthCallback() {
-  const { identity, loading, clearIdentity } = useShooAuth();
-  const { login } = useAuth();
+  // SDK auto-handles the callback: exchanges code, persists identity, then
+  // redirects back to the page that initiated sign-in. The originating page's
+  // GoogleSignInButton picks up the stored identity and calls the backend.
+  const { error } = useShooAuth();
   const navigate = useNavigate();
-  const handled = useRef(false);
 
   useEffect(() => {
-    if (loading || !identity?.token || handled.current) return;
-    handled.current = true;
-
-    auth.oauthShoo(identity.token).then(async ({ access_token }) => {
-      clearIdentity();
-      await login(access_token);
-      navigate('/documents');
-    }).catch((err) => {
-      clearIdentity();
-      const message = err instanceof ApiError ? err.message : 'Google sign-in failed';
-      navigate(`/login?error=${encodeURIComponent(message)}`);
-    });
-  }, [loading, identity, login, navigate, clearIdentity]);
+    if (error) {
+      navigate(`/login?error=${encodeURIComponent(error)}`);
+    }
+  }, [error, navigate]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
