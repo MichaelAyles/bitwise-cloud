@@ -26,8 +26,8 @@ export default function AuthCallback() {
   }, [loading, identity, login, navigate, clearIdentity]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4">
-      <div className="text-zinc-400 text-sm">Signing in...</div>
+    <div className="min-h-screen flex items-center justify-center bg-slate-900 px-4">
+      <div className="text-slate-400 text-sm">Signing in...</div>
     </div>
   );
 }

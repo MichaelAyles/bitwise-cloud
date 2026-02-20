@@ -52,7 +52,7 @@ function DashboardTab() {
     }
   };
 
-  if (!stats) return <div className="text-zinc-400">Loading stats...</div>;
+  if (!stats) return <div className="text-slate-400">Loading stats...</div>;
 
   return (
     <div className="space-y-6">
@@ -65,16 +65,16 @@ function DashboardTab() {
 
       {sysHealth && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-400 mb-2">System Health</h3>
+          <h3 className="text-sm font-medium text-slate-400 mb-2">System Health</h3>
           <div className="flex gap-3 flex-wrap">
             {Object.entries(sysHealth.checks).map(([name, status]) => (
-              <span key={name} className={`flex items-center gap-2 bg-zinc-900 border rounded px-3 py-1.5 text-sm ${
-                status === 'ok' ? 'border-zinc-800' : 'border-red-800'
+              <span key={name} className={`flex items-center gap-2 bg-slate-800/50 border rounded px-3 py-1.5 text-sm ${
+                status === 'ok' ? 'border-slate-700/50' : 'border-red-800'
               }`}>
                 <span className={`inline-block w-2 h-2 rounded-full ${
                   status === 'ok' ? 'bg-green-400' : 'bg-red-400'
                 }`} />
-                <span className="text-zinc-300">{name}</span>
+                <span className="text-slate-300">{name}</span>
                 {status !== 'ok' && <span className="text-red-400 text-xs ml-1">({status})</span>}
               </span>
             ))}
@@ -84,10 +84,10 @@ function DashboardTab() {
 
       {Object.keys(stats.documents_by_status).length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-400 mb-2">Documents by Status</h3>
+          <h3 className="text-sm font-medium text-slate-400 mb-2">Documents by Status</h3>
           <div className="flex gap-3 flex-wrap">
             {Object.entries(stats.documents_by_status).map(([s, count]) => (
-              <span key={s} className="bg-zinc-800 rounded px-3 py-1 text-sm">
+              <span key={s} className="bg-slate-700/50 rounded px-3 py-1 text-sm">
                 {s}: <span className="text-white font-medium">{count}</span>
               </span>
             ))}
@@ -95,14 +95,14 @@ function DashboardTab() {
         </div>
       )}
 
-      <div className="border-t border-zinc-800 pt-4">
-        <h3 className="text-sm font-medium text-zinc-400 mb-2">Registration Mode</h3>
+      <div className="border-t border-slate-700/50 pt-4">
+        <h3 className="text-sm font-medium text-slate-400 mb-2">Registration Mode</h3>
         <div className="flex items-center gap-4">
           <span className={`text-sm font-medium ${regMode === 'invite_only' ? 'text-amber-400' : 'text-green-400'}`}>
             {regMode === 'invite_only' ? 'Invite Only' : 'Open'}
           </span>
           <button onClick={toggleRegMode} disabled={toggling}
-            className="text-sm bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 px-3 py-1 rounded transition-colors">
+            className="text-sm bg-slate-700/50 hover:bg-slate-600/50 disabled:opacity-50 px-3 py-1 rounded transition-colors">
             Switch to {regMode === 'invite_only' ? 'Open' : 'Invite Only'}
           </button>
         </div>
@@ -113,8 +113,8 @@ function DashboardTab() {
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-      <div className="text-sm text-zinc-400">{label}</div>
+    <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4">
+      <div className="text-sm text-slate-400">{label}</div>
       <div className="text-2xl font-bold mt-1">{value}</div>
     </div>
   );
@@ -140,13 +140,13 @@ function UsersTab() {
     setUsers(prev => prev.map(p => p.id === updated.id ? updated : p));
   };
 
-  if (loading) return <div className="text-zinc-400">Loading users...</div>;
+  if (loading) return <div className="text-slate-400">Loading users...</div>;
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-zinc-400 border-b border-zinc-800">
+          <tr className="text-left text-slate-400 border-b border-slate-700/50">
             <th className="pb-2 pr-4">Email</th>
             <th className="pb-2 pr-4">Active</th>
             <th className="pb-2 pr-4">Admin</th>
@@ -158,7 +158,7 @@ function UsersTab() {
         </thead>
         <tbody>
           {users.map(u => (
-            <tr key={u.id} className="border-b border-zinc-800/50">
+            <tr key={u.id} className="border-b border-slate-700/30">
               <td className="py-2 pr-4">{u.email}</td>
               <td className="py-2 pr-4">
                 <span className={u.is_active ? 'text-green-400' : 'text-red-400'}>
@@ -166,20 +166,20 @@ function UsersTab() {
                 </span>
               </td>
               <td className="py-2 pr-4">
-                <span className={u.is_admin ? 'text-amber-400' : 'text-zinc-500'}>
+                <span className={u.is_admin ? 'text-amber-400' : 'text-slate-500'}>
                   {u.is_admin ? 'Yes' : 'No'}
                 </span>
               </td>
               <td className="py-2 pr-4">{u.document_count}</td>
               <td className="py-2 pr-4">{formatBytes(u.storage_used_bytes)} / {formatBytes(u.storage_limit_bytes)}</td>
-              <td className="py-2 pr-4 text-zinc-400">{formatDate(u.created_at)}</td>
+              <td className="py-2 pr-4 text-slate-400">{formatDate(u.created_at)}</td>
               <td className="py-2 space-x-2">
                 <button onClick={() => toggleActive(u)}
                   className={`text-xs px-2 py-1 rounded ${u.is_active ? 'bg-red-900/40 text-red-300 hover:bg-red-900/60' : 'bg-green-900/40 text-green-300 hover:bg-green-900/60'}`}>
                   {u.is_active ? 'Deactivate' : 'Activate'}
                 </button>
                 <button onClick={() => toggleAdmin(u)}
-                  className="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+                  className="text-xs px-2 py-1 rounded bg-slate-700/50 text-slate-300 hover:bg-slate-600/50">
                   {u.is_admin ? 'Remove Admin' : 'Make Admin'}
                 </button>
               </td>
@@ -207,13 +207,13 @@ function DocumentsTab() {
     setDocs(prev => prev.filter(d => d.id !== id));
   };
 
-  if (loading) return <div className="text-zinc-400">Loading documents...</div>;
+  if (loading) return <div className="text-slate-400">Loading documents...</div>;
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-zinc-400 border-b border-zinc-800">
+          <tr className="text-left text-slate-400 border-b border-slate-700/50">
             <th className="pb-2 pr-4">Title</th>
             <th className="pb-2 pr-4">Owner</th>
             <th className="pb-2 pr-4">Status</th>
@@ -225,19 +225,19 @@ function DocumentsTab() {
         </thead>
         <tbody>
           {docs.map(d => (
-            <tr key={d.id} className="border-b border-zinc-800/50">
+            <tr key={d.id} className="border-b border-slate-700/30">
               <td className="py-2 pr-4 max-w-xs truncate">{d.title}</td>
-              <td className="py-2 pr-4 text-zinc-400">{d.owner_email}</td>
+              <td className="py-2 pr-4 text-slate-400">{d.owner_email}</td>
               <td className="py-2 pr-4">
                 <span className={`text-xs px-2 py-0.5 rounded ${
                   d.status === 'completed' ? 'bg-green-900/40 text-green-300' :
                   d.status === 'failed' ? 'bg-red-900/40 text-red-300' :
-                  'bg-zinc-800 text-zinc-300'
+                  'bg-slate-700/50 text-slate-300'
                 }`}>{d.status}</span>
               </td>
               <td className="py-2 pr-4">{formatBytes(d.file_size_bytes)}</td>
               <td className="py-2 pr-4">{d.chunk_count}</td>
-              <td className="py-2 pr-4 text-zinc-400">{formatDate(d.created_at)}</td>
+              <td className="py-2 pr-4 text-slate-400">{formatDate(d.created_at)}</td>
               <td className="py-2">
                 <button onClick={() => handleDelete(d.id)}
                   className="text-xs px-2 py-1 rounded bg-red-900/40 text-red-300 hover:bg-red-900/60">
@@ -248,7 +248,7 @@ function DocumentsTab() {
           ))}
         </tbody>
       </table>
-      {docs.length === 0 && <p className="text-zinc-500 text-sm mt-4">No documents yet.</p>}
+      {docs.length === 0 && <p className="text-slate-500 text-sm mt-4">No documents yet.</p>}
     </div>
   );
 }
@@ -295,7 +295,7 @@ function InvitesTab() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  if (loading) return <div className="text-zinc-400">Loading invites...</div>;
+  if (loading) return <div className="text-slate-400">Loading invites...</div>;
 
   const pending = invites.filter(i => !i.accepted_at);
   const accepted = invites.filter(i => i.accepted_at);
@@ -304,10 +304,10 @@ function InvitesTab() {
     <div className="space-y-6">
       <form onSubmit={handleCreate} className="flex gap-3 items-end">
         <div className="flex-1">
-          <label className="block text-sm text-zinc-400 mb-1">Invite Email</label>
+          <label className="block text-sm text-slate-400 mb-1">Invite Email</label>
           <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
             placeholder="user@example.com"
-            className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
+            className="w-full bg-slate-800/50 border border-slate-600/50 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500" />
         </div>
         <button type="submit" disabled={creating}
           className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded px-4 py-2 transition-colors">
@@ -318,22 +318,22 @@ function InvitesTab() {
 
       {pending.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-400 mb-2">Pending Invites</h3>
+          <h3 className="text-sm font-medium text-slate-400 mb-2">Pending Invites</h3>
           <div className="space-y-2">
             {pending.map(inv => {
               const expired = new Date(inv.expires_at) < new Date();
               return (
-                <div key={inv.id} className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded px-4 py-3">
+                <div key={inv.id} className="flex items-center justify-between bg-slate-800/50 border border-slate-700/50 rounded px-4 py-3">
                   <div>
                     <span className="text-sm font-medium">{inv.email}</span>
-                    <span className={`ml-3 text-xs ${expired ? 'text-red-400' : 'text-zinc-500'}`}>
+                    <span className={`ml-3 text-xs ${expired ? 'text-red-400' : 'text-slate-500'}`}>
                       {expired ? 'Expired' : `Expires ${formatDate(inv.expires_at)}`}
                     </span>
                   </div>
                   <div className="flex gap-2">
                     {!expired && (
                       <button onClick={() => copyLink(inv.token, inv.id)}
-                        className="text-xs px-2 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+                        className="text-xs px-2 py-1 rounded bg-slate-700/50 text-slate-300 hover:bg-slate-600/50">
                         {copiedId === inv.id ? 'Copied!' : 'Copy Link'}
                       </button>
                     )}
@@ -351,12 +351,12 @@ function InvitesTab() {
 
       {accepted.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-400 mb-2">Accepted Invites</h3>
+          <h3 className="text-sm font-medium text-slate-400 mb-2">Accepted Invites</h3>
           <div className="space-y-2">
             {accepted.map(inv => (
-              <div key={inv.id} className="flex items-center justify-between bg-zinc-900/50 border border-zinc-800/50 rounded px-4 py-3">
+              <div key={inv.id} className="flex items-center justify-between bg-slate-800/30 border border-slate-700/30 rounded px-4 py-3">
                 <div>
-                  <span className="text-sm text-zinc-300">{inv.email}</span>
+                  <span className="text-sm text-slate-300">{inv.email}</span>
                   <span className="ml-3 text-xs text-green-400">Accepted {formatDate(inv.accepted_at!)}</span>
                 </div>
               </div>
@@ -365,7 +365,7 @@ function InvitesTab() {
         </div>
       )}
 
-      {invites.length === 0 && <p className="text-zinc-500 text-sm">No invites yet.</p>}
+      {invites.length === 0 && <p className="text-slate-500 text-sm">No invites yet.</p>}
     </div>
   );
 }
@@ -381,11 +381,11 @@ export default function Admin() {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Admin</h1>
-      <div className="flex gap-1 mb-6 border-b border-zinc-800">
+      <div className="flex gap-1 mb-6 border-b border-slate-700/50">
         {tabs.map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
-              tab === t ? 'border-blue-500 text-white' : 'border-transparent text-zinc-400 hover:text-white'
+              tab === t ? 'border-blue-500 text-white' : 'border-transparent text-slate-400 hover:text-white'
             }`}>
             {t}
           </button>

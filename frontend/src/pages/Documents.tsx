@@ -13,10 +13,10 @@ function StatusBadge({ status }: { status: string }) {
     pending: 'bg-yellow-900/50 text-yellow-400 border-yellow-700',
     ingesting: 'bg-blue-900/50 text-blue-400 border-blue-700',
     failed: 'bg-red-900/50 text-red-400 border-red-700',
-    removing: 'bg-zinc-800 text-zinc-400 border-zinc-600',
+    removing: 'bg-slate-700/50 text-slate-400 border-slate-500/50',
   };
   return (
-    <span className={`text-xs px-2 py-0.5 rounded border ${colors[status] || 'bg-zinc-800 text-zinc-400 border-zinc-600'}`}>
+    <span className={`text-xs px-2 py-0.5 rounded border ${colors[status] || 'bg-slate-700/50 text-slate-400 border-slate-500/50'}`}>
       {status}
     </span>
   );
@@ -45,11 +45,11 @@ function ProgressBar({ docId }: { docId: string }) {
 
   return (
     <div className="mt-2">
-      <div className="flex justify-between text-xs text-zinc-400 mb-1">
+      <div className="flex justify-between text-xs text-slate-400 mb-1">
         <span>{msg || 'Processing...'}</span>
         <span>{pct}%</span>
       </div>
-      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-slate-700/50 rounded-full overflow-hidden">
         <div className="h-full bg-blue-500 transition-all duration-500 rounded-full" style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -120,23 +120,23 @@ export default function Documents() {
       {error && <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-3 py-2 mb-4">{error}</div>}
 
       {loading ? (
-        <p className="text-zinc-400 text-sm">Loading...</p>
+        <p className="text-slate-400 text-sm">Loading...</p>
       ) : docs.length === 0 ? (
-        <div className="border border-dashed border-zinc-700 rounded-lg p-12 text-center">
-          <p className="text-zinc-400 mb-2">No documents yet</p>
-          <p className="text-zinc-500 text-sm">Upload a PDF reference manual to get started</p>
+        <div className="border border-dashed border-slate-600/50 rounded-lg p-12 text-center">
+          <p className="text-slate-400 mb-2">No documents yet</p>
+          <p className="text-slate-500 text-sm">Upload a PDF reference manual to get started</p>
         </div>
       ) : (
         <div className="space-y-3">
           {docs.map(doc => (
-            <div key={doc.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+            <div key={doc.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4">
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-sm font-medium truncate">{doc.title}</h3>
                     <StatusBadge status={doc.status} />
                   </div>
-                  <div className="flex gap-4 text-xs text-zinc-500">
+                  <div className="flex gap-4 text-xs text-slate-500">
                     <span>{formatBytes(doc.file_size_bytes)}</span>
                     {doc.page_count && <span>{doc.page_count} pages</span>}
                     {doc.chunk_count > 0 && <span>{doc.chunk_count} chunks</span>}
@@ -150,7 +150,7 @@ export default function Documents() {
                   )}
                 </div>
                 <button onClick={() => handleDelete(doc.id)}
-                  className="text-zinc-600 hover:text-red-400 text-sm ml-4 transition-colors">
+                  className="text-slate-500 hover:text-red-400 text-sm ml-4 transition-colors">
                   Delete
                 </button>
               </div>
