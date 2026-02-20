@@ -53,10 +53,9 @@ jobs:
           context: .
           file: backend/Dockerfile
           push: true
-          load: true
           tags: ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache,mode=max
 
       - name: Build and push caddy (SHA tag)
         uses: docker/build-push-action@v6
@@ -66,12 +65,13 @@ jobs:
           push: true
           tags: ${{ env.CADDY_IMAGE }}:${{ github.sha }}
           build-args: GIT_SHA=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ env.CADDY_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.CADDY_IMAGE }}:buildcache,mode=max
 
       # Smoke test: boot backend with deps and hit /api/health
       - name: Smoke test backend
         run: |
+          docker pull ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
           docker network create test-net
 
           docker run -d --name test-postgres --network test-net \

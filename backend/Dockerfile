@@ -10,9 +10,13 @@ WORKDIR /app
 # Install CPU-only PyTorch first (avoids pulling ~4GB of CUDA libs)
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-# Install backend deps
+# Install backend deps (copy only pyproject.toml so this layer is cached unless deps change)
 COPY backend/pyproject.toml .
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir $(python -c "
+import tomllib, pathlib
+deps = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['dependencies']
+print(' '.join(deps))
+")
 
 # Copy the engine package from repo root
 COPY mcp_embedded_docs/ /app/mcp_embedded_docs/
