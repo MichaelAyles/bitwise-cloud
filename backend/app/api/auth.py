@@ -26,6 +26,18 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=settings.refresh_token_expire_days * 86400,
+        path="/api/auth/refresh",
+    )
+
+
 async def _get_registration_mode(db: AsyncSession) -> str:
     result = await db.execute(
         select(SystemSetting).where(SystemSetting.key == "registration_mode")
@@ -109,16 +121,7 @@ async def register(
 
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=settings.refresh_token_expire_days * 86400,
-        path="/api/auth/refresh",
-    )
+    _set_refresh_cookie(response, refresh_token)
 
     return TokenResponse(access_token=access_token)
 
@@ -150,16 +153,7 @@ async def login(
 
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=settings.refresh_token_expire_days * 86400,
-        path="/api/auth/refresh",
-    )
+    _set_refresh_cookie(response, refresh_token)
 
     return TokenResponse(access_token=access_token)
 
@@ -184,13 +178,15 @@ async def oauth_shoo(
     user = result.scalar_one_or_none()
 
     if user is None:
-        # Check if email matches an existing user — link OAuth
-        result = await db.execute(select(User).where(User.email == claims.email))
-        user = result.scalar_one_or_none()
-        if user is not None:
-            user.oauth_provider = "shoo"
-            user.oauth_sub = claims.sub
-        else:
+        # Only link to existing account if email is verified
+        if claims.email_verified:
+            result = await db.execute(select(User).where(User.email == claims.email))
+            user = result.scalar_one_or_none()
+            if user is not None:
+                user.oauth_provider = "shoo"
+                user.oauth_sub = claims.sub
+
+        if user is None:
             # Auto-register new OAuth user
             user = User(
                 email=claims.email,
@@ -210,16 +206,7 @@ async def oauth_shoo(
 
     access_token = create_access_token(user.id)
     refresh_token = create_refresh_token(user.id)
-
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=settings.refresh_token_expire_days * 86400,
-        path="/api/auth/refresh",
-    )
+    _set_refresh_cookie(response, refresh_token)
 
     return TokenResponse(access_token=access_token)
 
@@ -258,15 +245,6 @@ async def refresh(
 
     access_token = create_access_token(user.id)
     new_refresh_token = create_refresh_token(user.id)
-
-    response.set_cookie(
-        key="refresh_token",
-        value=new_refresh_token,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        max_age=settings.refresh_token_expire_days * 86400,
-        path="/api/auth/refresh",
-    )
+    _set_refresh_cookie(response, new_refresh_token)
 
     return TokenResponse(access_token=access_token)

@@ -32,6 +32,7 @@ async def _get_jwks() -> dict:
 class ShooClaims:
     sub: str
     email: str
+    email_verified: bool
     name: str | None
     picture: str | None
 
@@ -85,6 +86,7 @@ async def verify_shoo_token(id_token: str) -> ShooClaims:
     return ShooClaims(
         sub=sub,
         email=email,
+        email_verified=bool(payload.get("email_verified", False)),
         name=payload.get("name"),
         picture=payload.get("picture"),
     )

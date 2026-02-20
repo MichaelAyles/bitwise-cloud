@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useShooAuth } from '@shoojs/react';
-import { auth } from '../api';
+import { auth, ApiError } from '../api';
 import { useAuth } from '../auth';
 
 export default function AuthCallback() {
@@ -18,9 +18,10 @@ export default function AuthCallback() {
       clearIdentity();
       await login(access_token);
       navigate('/documents');
-    }).catch(() => {
+    }).catch((err) => {
       clearIdentity();
-      navigate('/login');
+      const message = err instanceof ApiError ? err.message : 'Google sign-in failed';
+      navigate(`/login?error=${encodeURIComponent(message)}`);
     });
   }, [loading, identity, login, navigate, clearIdentity]);
 
