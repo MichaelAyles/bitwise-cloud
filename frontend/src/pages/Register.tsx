@@ -60,7 +60,7 @@ export default function Register() {
     try {
       const { access_token } = await auth.oauthShoo(idToken);
       await login(access_token);
-      navigate('/');
+      navigate('/documents');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Google sign-in failed');
     } finally {
@@ -75,7 +75,7 @@ export default function Register() {
     try {
       const { access_token } = await auth.register(email, password, token || undefined);
       await login(access_token);
-      navigate('/');
+      navigate('/documents');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Registration failed');
     } finally {

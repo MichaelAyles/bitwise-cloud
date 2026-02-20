@@ -2,7 +2,7 @@ import { NavLink, Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from './auth';
 
 const baseNavItems = [
-  { to: '/', label: 'Documents' },
+  { to: '/documents', label: 'Documents' },
   { to: '/search', label: 'Search' },
   { to: '/api-keys', label: 'API Keys' },
 ];
@@ -13,7 +13,7 @@ export default function Layout() {
   if (loading) {
     return <div className="min-h-screen bg-zinc-950 flex items-center justify-center text-zinc-400">Loading...</div>;
   }
-  if (!user) return <Navigate to="/login" />;
+  if (!user) return <Navigate to="/" />;
 
   const navItems = user.is_admin
     ? [...baseNavItems, { to: '/admin', label: 'Admin' }]
@@ -27,7 +27,7 @@ export default function Layout() {
             <span className="font-bold text-lg">BitWise</span>
             <nav className="flex gap-1">
               {navItems.map(n => (
-                <NavLink key={n.to} to={n.to} end={n.to === '/'}
+                <NavLink key={n.to} to={n.to} end={n.to === '/documents'}
                   className={({ isActive }) =>
                     `px-3 py-1.5 rounded text-sm transition-colors ${isActive ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white'}`
                   }>

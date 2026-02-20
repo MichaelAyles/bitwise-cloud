@@ -17,7 +17,7 @@ export default function AuthCallback() {
     auth.oauthShoo(identity.token).then(async ({ access_token }) => {
       clearIdentity();
       await login(access_token);
-      navigate('/');
+      navigate('/documents');
     }).catch(() => {
       clearIdentity();
       navigate('/login');

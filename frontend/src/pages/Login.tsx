@@ -26,7 +26,7 @@ export default function Login() {
     try {
       const { access_token } = await auth.login(email, password);
       await login(access_token);
-      navigate('/');
+      navigate('/documents');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Login failed');
     } finally {
