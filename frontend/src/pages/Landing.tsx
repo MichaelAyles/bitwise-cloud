@@ -135,7 +135,7 @@ export default function Landing() {
               <circle cx="12" cy="12" r="10" />
               <path d="M8 12l2 2 4-4" />
             </svg>
-            <span className="font-bold text-lg">BitWise Cloud</span>
+            <span className="font-bold text-lg">Bitwise</span>
           </div>
           <nav className="flex items-center gap-4 sm:gap-6 text-sm">
             <a href="#features" className="text-slate-400 hover:text-white transition-colors hidden sm:inline">Docs</a>
@@ -214,7 +214,7 @@ export default function Landing() {
       {/* Footer */}
       <footer className="relative z-10 border-t border-slate-700/50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex justify-between text-xs text-slate-600">
-          <span>BitWise Cloud</span>
+          <span>Bitwise</span>
           <span>&copy; 2026</span>
         </div>
       </footer>

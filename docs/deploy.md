@@ -1,6 +1,6 @@
 # Production Deployment
 
-BitWise Cloud deploys to a Linux box via Cloudflare Tunnel. GitHub Actions builds images on push to `main`, Watchtower auto-pulls them on the server.
+Bitwise deploys to a Linux box via Cloudflare Tunnel. GitHub Actions builds images on push to `main`, Watchtower auto-pulls them on the server.
 
 ## Architecture
 

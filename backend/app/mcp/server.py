@@ -14,7 +14,7 @@ from mcp.server.fastmcp import FastMCP
 from app.config import settings
 
 mcp = FastMCP(
-    "BitWise Cloud",
+    "Bitwise",
     stateless_http=True,
     streamable_http_path="/",
 )
@@ -106,7 +106,7 @@ def search_docs(
     Args:
         query: Search query (natural language or keywords)
         top_k: Number of results to return (default 5)
-        api_key: Your BitWise Cloud API key (required)
+        api_key: Your Bitwise API key (required)
     """
     if not api_key:
         return "Error: api_key parameter is required"
@@ -151,7 +151,7 @@ def find_register(
     Args:
         name: Register name (e.g. 'CANSTAT', 'CNF1')
         peripheral: Optional peripheral name to filter results
-        api_key: Your BitWise Cloud API key (required)
+        api_key: Your Bitwise API key (required)
     """
     if not api_key:
         return "Error: api_key parameter is required"

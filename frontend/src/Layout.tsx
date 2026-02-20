@@ -36,7 +36,7 @@ export default function Layout() {
       <header className="relative z-10 border-b border-slate-700/50">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-8">
-            <span className="font-bold text-lg">BitWise</span>
+            <span className="font-bold text-lg">Bitwise</span>
             <nav className="flex gap-1">
               {navItems.map(n => (
                 <NavLink key={n.to} to={n.to} end={n.to === '/documents'}
@@ -59,7 +59,7 @@ export default function Layout() {
       </main>
       <footer className="relative z-10 border-t border-slate-700/50 mt-auto">
         <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between text-xs text-slate-500">
-          <span>BitWise Cloud</span>
+          <span>Bitwise</span>
           <span>{__GIT_SHA__ !== 'dev' ? __GIT_SHA__.slice(0, 7) : 'dev'}</span>
         </div>
       </footer>

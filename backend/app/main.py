@@ -24,7 +24,7 @@ async def lifespan(application: FastAPI):
 
 def create_app() -> FastAPI:
     application = FastAPI(
-        title="BitWise Cloud",
+        title="Bitwise",
         description="Hosted search for embedded systems documentation",
         version="0.1.0",
         lifespan=lifespan,

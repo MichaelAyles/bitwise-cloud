@@ -1,4 +1,4 @@
-# BitWise Cloud
+# Bitwise
 
 Hosted platform for embedded systems documentation. Upload PDF reference manuals, automatically extract register definitions and memory maps, then search across your datasheets with hybrid keyword + semantic retrieval. Built for engineers who are tired of Ctrl+F through 2000-page MCU manuals.
 
