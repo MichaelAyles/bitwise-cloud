@@ -1,7 +1,14 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,7 +18,9 @@ from app.database import Base
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        UniqueConstraint("oauth_provider", "oauth_sub", name="uq_users_oauth_provider_sub"),
+        UniqueConstraint(
+            "oauth_provider", "oauth_sub", name="uq_users_oauth_provider_sub"
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(

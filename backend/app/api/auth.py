@@ -134,7 +134,11 @@ async def login(
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    if user is None or not user.password_hash or not verify_password(body.password, user.password_hash):
+    if (
+        user is None
+        or not user.password_hash
+        or not verify_password(body.password, user.password_hash)
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
@@ -171,23 +175,17 @@ async def oauth_shoo(
     try:
         claims = await verify_shoo_token(body.id_token)
     except ShooVerificationError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
     # Look up by OAuth identity
     result = await db.execute(
-        select(User).where(
-            User.oauth_provider == "shoo", User.oauth_sub == claims.sub
-        )
+        select(User).where(User.oauth_provider == "shoo", User.oauth_sub == claims.sub)
     )
     user = result.scalar_one_or_none()
 
     if user is None:
         # Check if email matches an existing user — link OAuth
-        result = await db.execute(
-            select(User).where(User.email == claims.email)
-        )
+        result = await db.execute(select(User).where(User.email == claims.email))
         user = result.scalar_one_or_none()
         if user is not None:
             user.oauth_provider = "shoo"
