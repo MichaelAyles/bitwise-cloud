@@ -92,6 +92,25 @@ MCP plugin: `config.yaml` (optional, falls back to defaults):
 
 `plugins/bitwise-embedded-docs/` contains the Claude Code plugin with `.mcp.json` entry point and two skills (`/ingest-docs`, `/search-docs`). Bump the version by changing `pyproject.toml` version field.
 
+## Pre-commit Checks (MANDATORY)
+
+**You MUST run these checks before every commit. Do not commit if any check fails.**
+
+```bash
+# 1. Format backend Python (must pass — CI runs black --check)
+python3 -m black backend/app/
+
+# 2. Type-check backend (must pass — CI runs mypy)
+python3 -m mypy backend/app/ --ignore-missing-imports --install-types --non-interactive
+
+# 3. Type-check and build frontend (must pass — CI builds the Docker image)
+cd frontend && npx tsc -b --noEmit && npx vite build
+```
+
+If `black` or `mypy` are not installed locally, install them: `pip3 install black mypy`
+
+These mirror the CI lint job in `.github/workflows/deploy.yml`. A failed CI build blocks deployment via Watchtower, so never push code that hasn't passed all three checks.
+
 ## Adding a New Tool
 
 1. Create `tools/new_tool.py` with an async function returning a markdown string
