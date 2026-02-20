@@ -15,6 +15,13 @@ logger = logging.getLogger(__name__)
 _embedder = None
 _embedder_lock = threading.Lock()
 
+# Cache for loaded indices to avoid expensive disk I/O
+# Maps (path_str) -> Store instance
+_vector_store_cache: dict[str, Any] = {}
+_metadata_store_cache: dict[str, Any] = {}
+_cache_lock = threading.Lock()
+MAX_CACHE_SIZE = 100
+
 
 def get_shared_embedder():
     """Get or create the shared LocalEmbedder instance (thread-safe)."""
@@ -33,6 +40,48 @@ def get_shared_embedder():
                 )
                 logger.info("Embedding model loaded (dim=%d)", _embedder.dimension)
     return _embedder
+
+
+def _get_vector_store(path: Path, dimension: int) -> Any:
+    path_str = str(path)
+    with _cache_lock:
+        if path_str in _vector_store_cache:
+            return _vector_store_cache[path_str]
+
+        from mcp_embedded_docs.indexing.vector_store import VectorStore
+
+        vs = VectorStore(dimension=dimension)
+        vs.load(path)
+
+        # Basic LRU: if cache too big, clear it (simple approach)
+        if len(_vector_store_cache) >= MAX_CACHE_SIZE:
+            _vector_store_cache.clear()
+
+        _vector_store_cache[path_str] = vs
+        return vs
+
+
+def _get_metadata_store(path: Path) -> Any:
+    path_str = str(path)
+    with _cache_lock:
+        if path_str in _metadata_store_cache:
+            return _metadata_store_cache[path_str]
+
+        from mcp_embedded_docs.indexing.metadata_store import MetadataStore
+
+        ms = MetadataStore(path)
+
+        if len(_metadata_store_cache) >= MAX_CACHE_SIZE:
+            # Close old connections before clearing
+            for store in _metadata_store_cache.values():
+                try:
+                    store.close()
+                except Exception:
+                    pass
+            _metadata_store_cache.clear()
+
+        _metadata_store_cache[path_str] = ms
+        return ms
 
 
 @dataclass
@@ -151,6 +200,12 @@ class IngestionPipeline:
                 register_count += len(chunk.structured_data["registers"])
 
         metadata_store.close()
+
+        # Invalidate cache for this doc since it was updated
+        with _cache_lock:
+            _vector_store_cache.pop(str(vector_path), None)
+            _metadata_store_cache.pop(str(metadata_path), None)
+
         _progress(100, "Ingestion complete")
 
         return IngestionResult(
@@ -161,7 +216,19 @@ class IngestionPipeline:
 
 
 def remove_document_indices(index_dir: Path, doc_id: str):
-    """Remove all index files for a document."""
+    """Remove all index files for a document and clear from cache."""
+    vector_path = index_dir / f"vectors_{doc_id}.faiss"
+    metadata_path = index_dir / f"metadata_{doc_id}.db"
+
+    with _cache_lock:
+        _vector_store_cache.pop(str(vector_path), None)
+        ms = _metadata_store_cache.pop(str(metadata_path), None)
+        if ms:
+            try:
+                ms.close()
+            except Exception:
+                pass
+
     for pattern in [
         f"vectors_{doc_id}.faiss",
         f"vectors_{doc_id}.ids",
@@ -193,46 +260,97 @@ def search_documents(
     top_k: int = 10,
 ) -> list[SearchHit]:
     """Search across multiple per-document indices using hybrid search."""
-    from mcp_embedded_docs.indexing.metadata_store import MetadataStore
-    from mcp_embedded_docs.indexing.vector_store import VectorStore
-
     embedder = get_shared_embedder()
     query_vector = embedder.embed_query(query)
 
     all_hits: list[SearchHit] = []
 
     for doc_id in doc_ids:
-        vector_path = index_dir / f"vectors_{doc_id}.faiss"
-        metadata_path = index_dir / f"metadata_{doc_id}.db"
+        try:
+            vector_path = index_dir / f"vectors_{doc_id}.faiss"
+            metadata_path = index_dir / f"metadata_{doc_id}.db"
 
-        if not vector_path.exists() or not metadata_path.exists():
+            if not vector_path.exists() or not metadata_path.exists():
+                continue
+
+            # Semantic search (cached)
+            vs = _get_vector_store(vector_path, embedder.dimension)
+            semantic_results = vs.search(query_vector, top_k=top_k * 2)
+
+            # Convert L2 distance to similarity score
+            semantic_scores = {
+                cid: max(0.0, 1.0 - dist / 2.0) for cid, dist in semantic_results
+            }
+
+            # Keyword search (cached)
+            ms = _get_metadata_store(metadata_path)
+            keyword_results = ms.keyword_search(query, top_k=top_k * 2)
+            keyword_scores = dict(keyword_results)
+
+            # Combine scores
+            all_chunk_ids = set(semantic_scores.keys()) | set(keyword_scores.keys())
+            for chunk_id in all_chunk_ids:
+                sem = semantic_scores.get(chunk_id, 0.0)
+                kw = keyword_scores.get(chunk_id, 0.0)
+                combined = 0.6 * sem + 0.4 * kw
+                if chunk_id in semantic_scores and chunk_id in keyword_scores:
+                    combined *= 1.2
+
+                chunk_data = ms.get_chunk(chunk_id)
+                if chunk_data:
+                    import json
+
+                    structured = chunk_data.get("structured_data")
+                    if isinstance(structured, str):
+                        try:
+                            structured = json.loads(structured)
+                        except (json.JSONDecodeError, TypeError):
+                            structured = None
+                    metadata = chunk_data.get("metadata")
+                    if isinstance(metadata, str):
+                        try:
+                            metadata = json.loads(metadata)
+                        except (json.JSONDecodeError, TypeError):
+                            metadata = {}
+
+                    all_hits.append(
+                        SearchHit(
+                            chunk_id=chunk_id,
+                            score=combined,
+                            text=chunk_data.get("text", ""),
+                            doc_id=doc_id,
+                            document_title=doc_titles.get(doc_id, ""),
+                            page_start=chunk_data.get("page_start", 0),
+                            page_end=chunk_data.get("page_end", 0),
+                            section=(metadata or {}).get("section_title"),
+                            structured_data=structured,
+                        )
+                    )
+        except Exception as e:
+            logger.error("Error searching document %s: %s", doc_id, e)
             continue
 
-        # Semantic search
-        vs = VectorStore(dimension=embedder.dimension)
-        vs.load(vector_path)
-        semantic_results = vs.search(query_vector, top_k=top_k * 2)
+    all_hits.sort(key=lambda h: h.score, reverse=True)
+    return all_hits[:top_k]
 
-        # Convert L2 distance to similarity score
-        semantic_scores = {
-            cid: max(0.0, 1.0 - dist / 2.0) for cid, dist in semantic_results
-        }
 
-        # Keyword search
-        ms = MetadataStore(metadata_path)
-        keyword_results = ms.keyword_search(query, top_k=top_k * 2)
-        keyword_scores = dict(keyword_results)
+def find_register_in_documents(
+    index_dir: Path,
+    doc_ids: list[str],
+    doc_titles: dict[str, str],
+    name: str,
+    peripheral: str | None = None,
+) -> SearchHit | None:
+    """Find a register by name across multiple document indices."""
+    for doc_id in doc_ids:
+        try:
+            metadata_path = index_dir / f"metadata_{doc_id}.db"
+            if not metadata_path.exists():
+                continue
 
-        # Combine scores
-        all_chunk_ids = set(semantic_scores.keys()) | set(keyword_scores.keys())
-        for chunk_id in all_chunk_ids:
-            sem = semantic_scores.get(chunk_id, 0.0)
-            kw = keyword_scores.get(chunk_id, 0.0)
-            combined = 0.6 * sem + 0.4 * kw
-            if chunk_id in semantic_scores and chunk_id in keyword_scores:
-                combined *= 1.2
+            ms = _get_metadata_store(metadata_path)
+            chunk_data = ms.find_register(name, peripheral)
 
-            chunk_data = ms.get_chunk(chunk_id)
             if chunk_data:
                 import json
 
@@ -249,71 +367,19 @@ def search_documents(
                     except (json.JSONDecodeError, TypeError):
                         metadata = {}
 
-                all_hits.append(
-                    SearchHit(
-                        chunk_id=chunk_id,
-                        score=combined,
-                        text=chunk_data.get("text", ""),
-                        doc_id=doc_id,
-                        document_title=doc_titles.get(doc_id, ""),
-                        page_start=chunk_data.get("page_start", 0),
-                        page_end=chunk_data.get("page_end", 0),
-                        section=(metadata or {}).get("section_title"),
-                        structured_data=structured,
-                    )
+                return SearchHit(
+                    chunk_id=chunk_data["id"],
+                    score=1.0,
+                    text=chunk_data.get("text", ""),
+                    doc_id=doc_id,
+                    document_title=doc_titles.get(doc_id, ""),
+                    page_start=chunk_data.get("page_start", 0),
+                    page_end=chunk_data.get("page_end", 0),
+                    section=(metadata or {}).get("section_title"),
+                    structured_data=structured,
                 )
-
-        ms.close()
-
-    all_hits.sort(key=lambda h: h.score, reverse=True)
-    return all_hits[:top_k]
-
-
-def find_register_in_documents(
-    index_dir: Path,
-    doc_ids: list[str],
-    doc_titles: dict[str, str],
-    name: str,
-    peripheral: str | None = None,
-) -> SearchHit | None:
-    """Find a register by name across multiple document indices."""
-    from mcp_embedded_docs.indexing.metadata_store import MetadataStore
-
-    for doc_id in doc_ids:
-        metadata_path = index_dir / f"metadata_{doc_id}.db"
-        if not metadata_path.exists():
+        except Exception as e:
+            logger.error("Error finding register in document %s: %s", doc_id, e)
             continue
-
-        ms = MetadataStore(metadata_path)
-        chunk_data = ms.find_register(name, peripheral)
-        ms.close()
-
-        if chunk_data:
-            import json
-
-            structured = chunk_data.get("structured_data")
-            if isinstance(structured, str):
-                try:
-                    structured = json.loads(structured)
-                except (json.JSONDecodeError, TypeError):
-                    structured = None
-            metadata = chunk_data.get("metadata")
-            if isinstance(metadata, str):
-                try:
-                    metadata = json.loads(metadata)
-                except (json.JSONDecodeError, TypeError):
-                    metadata = {}
-
-            return SearchHit(
-                chunk_id=chunk_data["id"],
-                score=1.0,
-                text=chunk_data.get("text", ""),
-                doc_id=doc_id,
-                document_title=doc_titles.get(doc_id, ""),
-                page_start=chunk_data.get("page_start", 0),
-                page_end=chunk_data.get("page_end", 0),
-                section=(metadata or {}).get("section_title"),
-                structured_data=structured,
-            )
 
     return None

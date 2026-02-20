@@ -1,13 +1,14 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import ApiKeyAuth, get_api_key_auth, get_current_user
 from app.config import settings
 from app.database import get_db
+from app.limiter import limiter
 from app.models.document import Document
 from app.models.user import User
 from app.schemas.search import (
@@ -46,7 +47,9 @@ async def _get_searchable_docs(
 
 
 @router.post("", response_model=SearchResponse)
+@limiter.limit("30/minute")
 async def search_docs(
+    request: Request,
     body: SearchRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -77,7 +80,9 @@ async def search_docs(
 
 
 @router.post("/register")
+@limiter.limit("30/minute")
 async def find_register(
+    request: Request,
     body: RegisterSearchRequest,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -112,7 +117,9 @@ api_router = APIRouter(prefix="/v1", tags=["api"])
 
 
 @api_router.post("/search", response_model=SearchResponse)
+@limiter.limit("60/minute")
 async def api_search_docs(
+    request: Request,
     body: SearchRequest,
     auth: ApiKeyAuth = Depends(get_api_key_auth),
     db: AsyncSession = Depends(get_db),
@@ -153,7 +160,9 @@ async def api_search_docs(
 
 
 @api_router.post("/register")
+@limiter.limit("60/minute")
 async def api_find_register(
+    request: Request,
     body: RegisterSearchRequest,
     auth: ApiKeyAuth = Depends(get_api_key_auth),
     db: AsyncSession = Depends(get_db),

@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     rate_limit_search: str = "60/minute"
     rate_limit_upload: str = "10/hour"
 
+    shoo_issuer: str = "https://shoo.dev"
+    shoo_jwks_url: str = "https://shoo.dev/.well-known/jwks.json"
+
     model_config = {"env_file": ".env"}
 
 

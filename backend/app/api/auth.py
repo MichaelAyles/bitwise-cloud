@@ -1,17 +1,18 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
+from app.limiter import limiter
 from app.models.invite import Invite
 from app.models.system_setting import SystemSetting
 from app.models.user import User
 from app.schemas.admin import SettingsResponse
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import LoginRequest, OAuthRequest, RegisterRequest, TokenResponse
 from app.services.auth_service import (
     create_access_token,
     create_refresh_token,
@@ -19,6 +20,7 @@ from app.services.auth_service import (
     hash_password,
     verify_password,
 )
+from app.services.shoo_service import ShooVerificationError, verify_shoo_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -41,8 +43,12 @@ async def public_settings(db: AsyncSession = Depends(get_db)):
 @router.post(
     "/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("5/minute")
 async def register(
-    body: RegisterRequest, response: Response, db: AsyncSession = Depends(get_db)
+    request: Request,
+    body: RegisterRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
 ):
     mode = await _get_registration_mode(db)
 
@@ -118,16 +124,86 @@ async def register(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
 async def login(
-    body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)
+    request: Request,
+    body: LoginRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    if user is None or not verify_password(body.password, user.password_hash):
+    if user is None or not user.password_hash or not verify_password(body.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled"
+        )
+
+    access_token = create_access_token(user.id)
+    refresh_token = create_refresh_token(user.id)
+
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        max_age=settings.refresh_token_expire_days * 86400,
+        path="/api/auth/refresh",
+    )
+
+    return TokenResponse(access_token=access_token)
+
+
+@router.post("/oauth/shoo", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def oauth_shoo(
+    request: Request,
+    body: OAuthRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        claims = await verify_shoo_token(body.id_token)
+    except ShooVerificationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e)
+        )
+
+    # Look up by OAuth identity
+    result = await db.execute(
+        select(User).where(
+            User.oauth_provider == "shoo", User.oauth_sub == claims.sub
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        # Check if email matches an existing user — link OAuth
+        result = await db.execute(
+            select(User).where(User.email == claims.email)
+        )
+        user = result.scalar_one_or_none()
+        if user is not None:
+            user.oauth_provider = "shoo"
+            user.oauth_sub = claims.sub
+        else:
+            # Auto-register new OAuth user
+            user = User(
+                email=claims.email,
+                display_name=claims.name,
+                oauth_provider="shoo",
+                oauth_sub=claims.sub,
+            )
+            db.add(user)
+
+        await db.commit()
+        await db.refresh(user)
 
     if not user.is_active:
         raise HTTPException(

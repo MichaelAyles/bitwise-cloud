@@ -68,6 +68,10 @@ export const auth = {
     request<{ access_token: string }>('/auth/login', {
       method: 'POST', body: JSON.stringify({ email, password }),
     }),
+  oauthShoo: (id_token: string) =>
+    request<{ access_token: string }>('/auth/oauth/shoo', {
+      method: 'POST', body: JSON.stringify({ id_token }),
+    }),
   refresh: () =>
     request<{ access_token: string }>('/auth/refresh', { method: 'POST', credentials: 'include' }),
   settings: () =>
