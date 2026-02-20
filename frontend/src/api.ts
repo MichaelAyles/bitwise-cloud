@@ -13,7 +13,11 @@ export function getToken() {
   return accessToken;
 }
 
-async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  opts: RequestInit = {},
+  { skipAuthRetry = false }: { skipAuthRetry?: boolean } = {},
+): Promise<T> {
   const headers: Record<string, string> = {
     ...(opts.headers as Record<string, string> || {}),
   };
@@ -25,7 +29,7 @@ async function request<T>(path: string, opts: RequestInit = {}): Promise<T> {
 
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
 
-  if (res.status === 401) {
+  if (res.status === 401 && !skipAuthRetry) {
     // Try refresh
     const refreshRes = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' });
     if (refreshRes.ok) {
@@ -63,15 +67,15 @@ export const auth = {
   register: (email: string, password: string, invite_token?: string) =>
     request<{ access_token: string }>('/auth/register', {
       method: 'POST', body: JSON.stringify({ email, password, invite_token }),
-    }),
+    }, { skipAuthRetry: true }),
   login: (email: string, password: string) =>
     request<{ access_token: string }>('/auth/login', {
       method: 'POST', body: JSON.stringify({ email, password }),
-    }),
+    }, { skipAuthRetry: true }),
   oauthShoo: (id_token: string) =>
     request<{ access_token: string }>('/auth/oauth/shoo', {
       method: 'POST', body: JSON.stringify({ id_token }),
-    }),
+    }, { skipAuthRetry: true }),
   refresh: () =>
     request<{ access_token: string }>('/auth/refresh', { method: 'POST', credentials: 'include' }),
   settings: () =>
