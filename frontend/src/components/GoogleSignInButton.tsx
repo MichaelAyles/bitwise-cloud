@@ -9,7 +9,7 @@ interface GoogleSignInButtonProps {
 }
 
 export default function GoogleSignInButton({ onToken, disabled }: GoogleSignInButtonProps) {
-  const { identity, loading: shooLoading, signIn, clearIdentity } = useShooAuth();
+  const { identity, loading: shooLoading, signIn, clearIdentity } = useShooAuth({ requestPii: true });
   const initiated = useRef(false);
   const handled = useRef(false);
 
