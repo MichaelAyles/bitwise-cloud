@@ -5,7 +5,7 @@ Bitwise deploys to a Linux box via Cloudflare Tunnel. GitHub Actions builds imag
 ## Architecture
 
 ```
-Internet → Cloudflare CDN (app.bitwise.cloud) → cloudflared → caddy:80 → backend/frontend
+Internet → Cloudflare CDN (bitwise.mikeayles.com) → cloudflared → caddy:80 → backend/frontend
 ```
 
 No open ports on the server. Cloudflare handles HTTPS and DDoS protection.
@@ -24,7 +24,7 @@ sudo usermod -aG docker $USER
 
 1. Go to Cloudflare Zero Trust dashboard → Networks → Tunnels
 2. Create a tunnel, copy the token
-3. Add a public hostname: `app.bitwise.cloud` → `http://caddy:80`
+3. Add a public hostname: `bitwise.mikeayles.com` → `http://caddy:80`
 
 ### 3. Authenticate to GHCR
 
@@ -60,11 +60,11 @@ docker compose logs cloudflared            # Tunnel connected
 docker compose exec backend curl -s http://localhost:8000/api/health
 ```
 
-Then visit `https://app.bitwise.cloud` — should load the app. The `/api/health` endpoint checks Postgres and Redis connectivity and returns `"healthy"` or `"degraded"`.
+Then visit `https://bitwise.mikeayles.com` — should load the app. The `/api/health` endpoint checks Postgres and Redis connectivity and returns `"healthy"` or `"degraded"`.
 
 ### 6. Monitoring
 
-Set up UptimeRobot (or similar) to monitor `https://app.bitwise.cloud/api/health`.
+Set up UptimeRobot (or similar) to monitor `https://bitwise.mikeayles.com/api/health`.
 
 ### 7. Backups
 

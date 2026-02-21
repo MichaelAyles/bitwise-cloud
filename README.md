@@ -1,89 +1,90 @@
 # Bitwise
 
-Hosted platform for embedded systems documentation. Upload PDF reference manuals, automatically extract register definitions and memory maps, then search across your datasheets with hybrid keyword + semantic retrieval. Built for engineers who are tired of Ctrl+F through 2000-page MCU manuals.
-
-## Features
-
-- **PDF Ingestion** — Async pipeline parses large reference manuals preserving structure, detects register tables via pdfplumber, extracts to structured JSON with bitfield definitions
-- **Hybrid Search** — 60% semantic similarity (FAISS + bge-small-en-v1.5, 384-dim) + 40% keyword matching (SQLite FTS5), with 1.2x relevance boost when a result appears in both channels
-- **Register Lookup** — Direct register-by-name search returning structured data (address, offset, bitfields, peripheral)
-- **Context-Aware Chunking** — Leaf-section-only chunking with `[Manual > Section > Subsection]` hierarchy prefixes, sentence-boundary splitting (never mid-word), tables kept whole
-- **Multi-Tenant** — Per-user document isolation, configurable storage limits (default 5GB), per-document FAISS + SQLite indices
-- **API Keys** — Scoped access tokens (`bw_` prefix, SHA256 hashed) with per-document permissions, usage tracking, and expiry
-- **React Frontend** — Document management with live ingestion progress, search UI, API key management, admin panel with system health monitoring
-- **MCP Integration** — Search your datasheets directly from Claude Code via the `bitwise-embedded-docs` plugin
-- **Auth** — JWT access/refresh tokens, invite-only or open registration, admin role
+Hosted search for embedded systems documentation. Upload PDF reference manuals, automatically extract register definitions and memory maps, then search across your datasheets with hybrid keyword + semantic retrieval. Built for engineers who are tired of Ctrl+F through 2000-page MCU manuals.
 
 ## Architecture
 
 ```
-Internet → Cloudflare CDN → cloudflared (tunnel)
-                                  ↓
-React SPA → Caddy ──→ FastAPI (/api/* — 28 endpoints)
-                   ├─→ MCP server (/mcp/* — streamable HTTP)
-                   └─→ Static frontend (/*)
-
-Celery workers → PDF parse → Table detect → Chunk → Embed → FAISS + SQLite
+Internet → Cloudflare Tunnel (HTTPS + DDoS) → cloudflared
+                                                    ↓
+                                              Caddy (:80)
+                                         ┌──────┼──────┐
+                                    /api/*   /mcp/*     /*
+                                         ↓      ↓       ↓
+                                       FastAPI        React SPA
+                                         ↓
+                                   Celery workers
+                                         ↓
+                              PDF → Parse → Chunk → Embed
+                                         ↓
+                             FAISS (vectors) + SQLite (FTS5)
 ```
 
-**Services**: Postgres (users, docs, API keys, invites), Redis (Celery broker + cache), Caddy (reverse proxy + SPA), backend (FastAPI + Alembic migrations), worker (Celery, 2 concurrent)
+**Services**: Postgres (users, docs, API keys, invites), Redis (Celery broker), Caddy (reverse proxy + SPA), FastAPI backend (REST + MCP), Celery worker (PDF ingestion, concurrency 2)
 
-**Storage layout**:
+**Data isolation**: Each user gets their own index directory. Each document gets its own FAISS + SQLite index pair. API keys can be scoped to specific document subsets.
+
 ```
 /data/uploads/{user_id}/{doc_id}.pdf
 /data/indices/{user_id}/vectors_{doc_id}.faiss
 /data/indices/{user_id}/metadata_{doc_id}.db
 ```
 
-## Ingestion Pipeline
+## Features
 
-```
-Upload PDF → validate (magic bytes, size, SHA256 dedup)
-  → Celery task queued (status: pending → ingesting)
-    → PyMuPDF: extract text with layout, TOC, section hierarchy
-    → pdfplumber: detect register tables, memory maps
-    → TableExtractor: parse to Register/BitField structures
-    → SemanticChunker: leaf sections, 2500-char target, 200-char overlap
-    → bge-small-en-v1.5: 384-dim normalized embeddings (CPU, shared singleton)
-    → FAISS IndexFlatL2 + SQLite FTS5 per-document indices
-  → status: ready (page_count, chunk_count, register_count)
-```
+- **PDF Ingestion** — Async Celery pipeline: PyMuPDF extracts text preserving layout and TOC hierarchy, pdfplumber detects register tables and memory maps, structured extraction to Register/BitField objects, semantic chunking (2500-char target, 200-char overlap, tables kept whole), bge-small-en-v1.5 embeddings (384-dim, CPU), per-document FAISS + SQLite FTS5 indices. Frontend polls for real-time progress.
 
-Frontend polls `/api/documents/{id}/progress` for real-time ingestion updates.
+- **Hybrid Search** — 60% semantic similarity (FAISS) + 40% keyword matching (FTS5). Results appearing in both channels get a 1.2x boost. Register lookup by exact name returns structured data (address, offset, bitfields, peripheral).
+
+- **Auth** — JWT access tokens (15 min) + refresh tokens (7 days, httponly cookie). Google sign-in via [Shoo](https://shoo.dev) (PKCE OAuth, ES256 JWKS verification). Invite-only or open registration, admin role. OAuth users auto-created on first sign-in, linked to existing accounts by verified email.
+
+- **API Keys** — Scoped access tokens (`bw_` prefix, SHA256 hashed, shown once at creation). Per-document permissions, usage tracking, expiry. Used by both the REST API (`/api/v1/search`) and the MCP endpoint.
+
+- **Admin** — System stats, user management (activate/deactivate/promote), document oversight across all users, invite system with token generation and expiry, registration mode toggle, health monitoring (Postgres + Redis checks).
+
+- **MCP Integration** — Streamable HTTP MCP server at `/mcp/*` with `search_docs` and `find_register` tools (API key authenticated). Also ships as a standalone Claude Code plugin with 5 tools and `/ingest-docs`, `/search-docs` slash commands.
 
 ## Quick Start
 
 ```bash
 cp .env.example .env
-# Edit .env — generate secrets with: openssl rand -base64 32
+# Edit .env — generate secrets: openssl rand -base64 32 (passwords), openssl rand -base64 64 (JWT)
 docker compose up --build
 ```
 
-App at `http://localhost:80`. First user to register becomes admin (or set invite-only mode after).
+App at `http://localhost:80`. First user to register becomes admin.
 
 ## API
 
-**Auth**: register, login, refresh tokens (httponly cookie), registration settings
+| Group | Endpoints | Auth |
+|-------|-----------|------|
+| Auth | `POST register`, `login`, `oauth/shoo`, `refresh`; `GET settings` | Public (rate-limited) |
+| Users | `GET /me`, `PATCH /me` | JWT |
+| Documents | `POST upload`, `GET list`, `GET /{id}`, `PATCH /{id}`, `DELETE /{id}`, `GET /{id}/progress` | JWT |
+| Search | `POST /search`, `POST /search/register` | JWT |
+| Search (v1) | `POST /v1/search`, `POST /v1/register` | API Key |
+| API Keys | `POST create`, `GET list`, `GET /{id}`, `PATCH /{id}`, `PUT /{id}/documents`, `DELETE /{id}` | JWT |
+| Admin | Stats, users CRUD, documents CRUD, invites CRUD, settings | JWT (admin) |
+| Health | `GET /health` | Public |
 
-**Documents**: upload PDF, list, get, update title, delete, ingestion progress
+## OAuth (Shoo)
 
-**Search**: hybrid query + register lookup — both JWT-authenticated (`/api/search`) and API-key-authenticated (`/api/v1/search`) variants
+Google sign-in uses [Shoo](https://shoo.dev) as an OAuth intermediary. The frontend SDK (`@shoojs/react`) handles PKCE code exchange and identity persistence. Key implementation details:
 
-**API Keys**: create (returns key once), list, update, scope to specific documents, revoke
+- The SDK's `handleCallback()` does a full-page redirect after code exchange, so OAuth state must survive page reloads (use `sessionStorage`, not `useRef`)
+- `requestPii: true` must be passed to `useShooAuth()` or the identity token won't include email/name claims
+- The backend verifies the identity token using Shoo's JWKS endpoint (`ES256`), checking `audience: origin:{PUBLIC_HOST}` and `issuer: https://shoo.dev`
+- Auth API endpoints (`login`, `register`, `oauthShoo`) use `skipAuthRetry` to prevent the API client's automatic 401 refresh logic from swallowing actual errors
 
-**Admin**: system stats, user management (activate/deactivate/promote), document oversight, invite system, registration mode toggle, system settings
+## Deployment
 
-**Health**: `/api/health` — checks Postgres + Redis, returns 200 (healthy) or 503 (degraded)
-
-## Production Deployment
-
-Cloudflare Tunnel to a Linux box. No open ports, Cloudflare handles HTTPS + DDoS.
+Cloudflare Tunnel to a Linux box. No open ports. GitHub Actions builds + smoke tests on push to `main`, tags `:latest` only after health check passes. Watchtower auto-pulls within 60s.
 
 ```
-git push main → GitHub Actions (lint + build + smoke test) → GHCR → Watchtower auto-pulls within 60s
+git push main → CI (black + mypy + build + smoke test) → GHCR → Watchtower → live
 ```
 
-See [docs/deploy.md](docs/deploy.md) for setup guide, rollback procedure, and backup strategy.
+Immutable `:sha-<commit>` tags on every build enable rollback. See [docs/deploy.md](docs/deploy.md) for full setup, rollback, and backup procedures.
 
 ## MCP Plugin
 
@@ -92,11 +93,10 @@ claude plugin add bitwise-embedded-docs
 ```
 
 Tools: `search_docs`, `find_register`, `list_docs`, `ingest_docs`, `remove_docs`
-Slash commands: `/ingest-docs`, `/search-docs`
 
 ## Tech Stack
 
-Python 3.11 | FastAPI | Celery | PostgreSQL | Redis | React 19 | TypeScript | Tailwind CSS | Caddy | PyMuPDF | pdfplumber | sentence-transformers | FAISS | SQLite FTS5
+Python 3.11 | FastAPI | Celery | PostgreSQL | Redis | React 19 | TypeScript | Tailwind CSS 4 | Caddy | Shoo | PyMuPDF | pdfplumber | sentence-transformers | FAISS | SQLite FTS5
 
 ## License
 

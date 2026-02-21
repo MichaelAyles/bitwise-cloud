@@ -1,30 +1,35 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Pre-commit Checks (MANDATORY)
+
+**Run all three before every commit. CI will reject failures.**
+
+```bash
+python3 -m black backend/app/                                                      # Format
+python3 -m mypy backend/app/ --ignore-missing-imports --install-types --non-interactive  # Type check
+cd frontend && npx tsc -b --noEmit && npx vite build                               # Build frontend
+```
+
+Install if missing: `pip3 install black mypy`
 
 ## Commands
 
 ```bash
 # Development
-docker compose up --build                         # Run all services locally
+docker compose up --build                         # All services (postgres, redis, backend, worker, caddy)
 docker compose logs -f backend                    # Tail backend logs
+docker compose logs -f worker                     # Tail worker logs
 docker compose exec postgres psql -U bitwise bitwise  # DB shell
-
-# MCP plugin (standalone)
-poetry install                                    # Install dependencies
-poetry run mcp-embedded-docs serve                # Start MCP server (stdio)
-poetry run mcp-embedded-docs ingest PATH --title "Title"  # Ingest a PDF
-poetry run mcp-embedded-docs list                 # List indexed documents
-
-# Testing & linting
-poetry run pytest                                 # Run tests
-poetry run pytest tests/test_chunker.py -k "test_name"  # Single test
-poetry run black mcp_embedded_docs/               # Format
-poetry run mypy mcp_embedded_docs/                # Type check
 
 # Production
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
+
+# MCP plugin (standalone, outside Docker)
+poetry install
+poetry run mcp-embedded-docs serve
+poetry run mcp-embedded-docs ingest PATH --title "Title"
+poetry run mcp-embedded-docs list
 ```
 
 ## Project Structure
@@ -32,87 +37,144 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
 ```
 backend/
   app/
-    api/          # FastAPI route handlers (auth, documents, search, health, admin, api_keys)
-    models/       # SQLAlchemy models (user, document, ingestion_job, api_key)
-    mcp/          # MCP server endpoint
-    engine/       # Adapter bridging backend to mcp_embedded_docs engine
-    config.py     # Pydantic settings (env vars)
-    database.py   # Async SQLAlchemy engine + session
-    worker.py     # Celery app + ingestion tasks
-  alembic/        # Database migrations
-  Dockerfile      # Backend + worker image (Python 3.11, CPU PyTorch)
-frontend/         # React SPA (Vite + TypeScript)
-mcp_embedded_docs/  # Standalone MCP plugin (PDF ingestion + search engine)
-  tools/          # Tool implementations (lazy-loaded)
-  server.py       # FastMCP server entry point
-Dockerfile.caddy  # Caddy image (builds frontend, serves SPA + reverse proxy)
-Caddyfile         # Caddy config: /api/* → backend, /* → SPA
-docker-compose.yml        # Base services (postgres, redis, backend, worker, caddy)
-docker-compose.prod.yml   # Production overrides (GHCR images, cloudflared, watchtower)
+    api/              # Route handlers
+      auth.py         #   register, login, oauth/shoo, refresh, settings
+      documents.py    #   upload, list, get, update, delete, progress
+      search.py       #   hybrid search + register lookup (JWT and API key variants)
+      api_keys.py     #   create, list, update, scope documents, revoke
+      admin.py        #   stats, users, documents, invites, settings
+      health.py       #   postgres + redis connectivity check
+    models/           # SQLAlchemy ORM
+      user.py         #   email, password_hash, oauth_provider/sub, is_admin, storage limits
+      document.py     #   title, filename, file_hash, status, chunk/register counts
+      api_key.py      #   key_hash (SHA256), key_prefix, document scoping (M2M)
+      ingestion_job.py #  celery_task_id, progress_percent, progress_message
+      invite.py       #   email, token, expires_at, accepted_at
+      system_setting.py # key-value store (registration_mode)
+    schemas/          # Pydantic request/response models
+    services/
+      auth_service.py #   JWT create/decode, bcrypt hash/verify
+      shoo_service.py #   JWKS fetch + cache, ES256 token verification
+    engine/
+      adapter.py      #   Multi-tenant bridge to mcp_embedded_docs (embedder singleton, LRU caches)
+    mcp/
+      server.py       #   FastMCP stateless HTTP (search_docs, find_register tools)
+    config.py         # Pydantic settings from env vars
+    database.py       # Async SQLAlchemy engine + session factory
+    worker/
+      celery_app.py   # Celery config (Redis broker)
+      tasks.py        # ingest_document, remove_document (sync SQLAlchemy)
+    main.py           # FastAPI app factory, CORS, rate limiting, MCP mount
+  alembic/            # 3 migrations: initial schema, admin+invites, oauth columns
+  Dockerfile          # Python 3.11, CPU-only PyTorch
+
+frontend/
+  src/
+    App.tsx           # BrowserRouter + AuthProvider + route definitions
+    Layout.tsx        # Authenticated page wrapper (header, nav, footer, blueprint grid bg)
+    auth.tsx          # AuthProvider context (token persistence, user fetch, login/logout)
+    api.ts            # Centralized HTTP client (auto-retry on 401, skipAuthRetry for auth endpoints)
+    pages/
+      Landing.tsx     # Marketing page (isometric diagram, feature grid, pipeline strip)
+      Login.tsx       # Email/password + Google OAuth
+      Register.tsx    # Email/password + Google OAuth (invite token support)
+      AuthCallback.tsx # Shoo OAuth redirect target (SDK auto-handles code exchange)
+      Documents.tsx   # Upload, list, progress polling, delete
+      Search.tsx      # Hybrid search with document filtering
+      ApiKeys.tsx     # Create, scope, revoke API keys
+      Admin.tsx       # Tabs: dashboard, users, documents, invites
+    components/
+      GoogleSignInButton.tsx  # Shoo SDK integration (sessionStorage for redirect survival)
+
+mcp_embedded_docs/    # Standalone MCP plugin (also used as engine by backend)
+  server.py           # FastMCP with 5 tools (lazy imports)
+  tools/              # search_docs, find_register, list_docs, ingest_docs, remove_docs
+  ingestion/          # pdf_parser (PyMuPDF), table_detector (pdfplumber), table_extractor, chunker
+  indexing/           # embedder (bge-small-en-v1.5), vector_store (FAISS), metadata_store (SQLite FTS5)
+  retrieval/          # hybrid_search (keyword 0.4 + semantic 0.6, 1.2x cross-channel boost), formatter
+
+plugins/bitwise-embedded-docs/   # Claude Code plugin packaging (.mcp.json, skills)
+
+docker-compose.yml          # Dev: postgres, redis, backend, worker, caddy
+docker-compose.prod.yml     # Prod: GHCR images, cloudflared, watchtower, resource limits
+Dockerfile.caddy            # Node build stage → Caddy with SPA
+Caddyfile                   # /api/* + /mcp/* → backend:8000, /* → SPA with try_files
+scripts/backup-postgres.sh  # Daily pg_dump, 14-day retention, optional R2 upload
 ```
 
 ## Architecture
 
-### Backend (FastAPI + Celery)
+### Backend
 
-FastAPI serves the REST API at `/api/*` and MCP at `/mcp/*`. Celery workers handle async PDF ingestion. Auth is JWT-based with invite-only registration.
+FastAPI serves REST at `/api/*` and MCP at `/mcp/*`. Celery workers handle async PDF ingestion. Auth is JWT (HS256, 15-min access + 7-day refresh) with Shoo OAuth support.
 
-**Key routes**: `/api/auth/*`, `/api/documents/*`, `/api/search/*`, `/api/health`, `/api/admin/*`, `/api/keys/*`
+**Auth flow**: Password login returns JWT. OAuth flow: frontend SDK (PKCE) → Shoo → callback redirect → SDK persists identity token → GoogleSignInButton sends token to `/api/auth/oauth/shoo` → backend verifies with JWKS (ES256) → creates/links user → returns JWT.
 
-The health endpoint (`/api/health`) checks Postgres and Redis connectivity, returning `"healthy"` or `"degraded"`.
+**Key routes**: `/api/auth/*`, `/api/documents/*`, `/api/search/*`, `/api/v1/search/*` (API key), `/api/api-keys/*`, `/api/admin/*`, `/api/health`
 
-### MCP Engine (mcp_embedded_docs/)
+**Database**: Async SQLAlchemy (asyncpg) for FastAPI routes. Sync SQLAlchemy (psycopg2) for Celery tasks and MCP handlers. Alembic migrations run on backend startup — safe for single instance only.
 
-FastMCP server exposing 5 tools: `search_docs`, `find_register`, `list_docs`, `ingest_docs`, `remove_docs`. Heavy imports are deferred — tool implementations live in `tools/` and only import PDF/ML dependencies when called.
+### Search Engine
 
-**Ingestion pipeline**:
-```
-PDF → pdf_parser.py (PyMuPDF) → table_detector.py (pdfplumber) → table_extractor.py
-    → chunker.py (semantic chunking) → embedder.py (bge-small-en-v1.5) → FAISS + SQLite FTS5
-```
+The `mcp_embedded_docs/` package is the core engine, used both as a standalone MCP plugin and imported by the backend via `engine/adapter.py`.
 
-**Search pipeline**: Hybrid keyword (FTS5, weight 0.4) + semantic (FAISS, weight 0.6), with 1.2x boost for results in both channels.
+**Ingestion**: PDF → PyMuPDF (text + TOC + layout) → pdfplumber (table detection) → TableExtractor (Register/BitField structs) → SemanticChunker (leaf sections only, tables kept whole, `[Doc > Section > Subsection]` prefixes) → bge-small-en-v1.5 (384-dim, CPU) → per-document FAISS IndexFlatL2 + SQLite FTS5
+
+**Search**: Query → embed → FAISS (top_k*2) + FTS5 (top_k*2) → normalize scores → combine (0.6 semantic + 0.4 keyword) → 1.2x boost if in both → top_k results
+
+**Multi-tenancy**: The adapter maintains a shared embedder singleton (thread-safe) and LRU caches (max 100 each) for vector stores and metadata stores.
+
+### Frontend
+
+React 19 + TypeScript + Tailwind CSS 4. No state management library — just React context (auth) and local useState. Vite dev server proxies `/api/*` and `/mcp/*` to localhost:8000.
+
+**Auth**: AuthProvider wraps the app, restores token from localStorage on mount, validates by calling `/users/me`. Protected routes in Layout redirect unauthenticated users.
+
+**API client** (`api.ts`): Centralized `request<T>()` with auto-retry on 401 (refresh token → retry → redirect to /login). Auth endpoints use `skipAuthRetry: true` so errors surface instead of silently redirecting.
 
 ### Deployment
 
-Cloudflare Tunnel → Caddy → backend. GitHub Actions builds and pushes to GHCR on push to `main`. Watchtower auto-pulls on the production server. See `docs/deploy.md`.
+Cloudflare Tunnel → Caddy → backend. No open ports. GitHub Actions: lint (black + mypy) → build images (SHA tag) → smoke test (`/api/health`) → tag `:latest` → Watchtower auto-pulls within 60s.
 
-Alembic migrations run on backend startup. Single-instance only — needs init container if scaling replicas.
+Prod compose uses `build: !reset null` to disable local builds. Must `docker build` explicitly and tag as `ghcr.io/michaelayles/bitwise-cloud-*:latest`.
+
+## OAuth / Shoo
+
+The frontend uses `@shoojs/react` for Google sign-in. Gotchas learned the hard way:
+
+1. **Redirect survival**: Shoo's `handleCallback()` always calls `window.location.replace()` after code exchange. Any state in `useRef` is lost. Use `sessionStorage` for flags that must survive the redirect.
+2. **PII opt-in**: Pass `requestPii: true` to `useShooAuth()`. Without it, the identity token has no `email` or `name` claims, and the backend rejects it with "Token missing required claims".
+3. **Auth retry bypass**: `oauthShoo` returns 401 on verification failure. The API client's auto-retry logic (refresh → redirect to /login) must be skipped for auth endpoints, or the actual error is swallowed.
+4. **Audience format**: Shoo derives `client_id` as `origin:{window.location.origin}`. Backend must verify with the same format: `origin:{PUBLIC_HOST}`.
 
 ## Config
 
-Backend: Pydantic settings via env vars (see `.env.example`)
+**Backend** (env vars, see `.env.example`): `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `PUBLIC_HOST`, `SHOO_ISSUER`, `SHOO_JWKS_URL`
 
-MCP plugin: `config.yaml` (optional, falls back to defaults):
-- `chunking.target_size`: 2500 chars, `overlap`: 200 chars
-- `search.keyword_weight`: 0.4, `semantic_weight`: 0.6
-- `embeddings.model`: `BAAI/bge-small-en-v1.5`, `device`: `cpu`
+**MCP plugin** (`config.yaml`, optional): chunking (target 2500, overlap 200), search weights (keyword 0.4, semantic 0.6), embeddings (bge-small-en-v1.5, cpu)
 
-## Plugin
+## Adding a New API Endpoint
 
-`plugins/bitwise-embedded-docs/` contains the Claude Code plugin with `.mcp.json` entry point and two skills (`/ingest-docs`, `/search-docs`). Bump the version by changing `pyproject.toml` version field.
+1. Add route handler in `backend/app/api/`
+2. Add Pydantic schemas in `backend/app/schemas/`
+3. Register router in `backend/app/api/router.py`
+4. Add frontend API method in `frontend/src/api.ts`
 
-## Pre-commit Checks (MANDATORY)
+## Adding a New MCP Tool
 
-**You MUST run these checks before every commit. Do not commit if any check fails.**
+1. Create `mcp_embedded_docs/tools/new_tool.py` with an async function returning markdown
+2. Register in `server.py` with `@mcp.tool()` (docstring = tool description)
+3. Use lazy imports inside the function to keep server startup fast
+
+## Database Migrations
 
 ```bash
-# 1. Format backend Python (must pass — CI runs black --check)
-python3 -m black backend/app/
-
-# 2. Type-check backend (must pass — CI runs mypy)
-python3 -m mypy backend/app/ --ignore-missing-imports --install-types --non-interactive
-
-# 3. Type-check and build frontend (must pass — CI builds the Docker image)
-cd frontend && npx tsc -b --noEmit && npx vite build
+# Create a new migration
+docker compose exec backend alembic revision --autogenerate -m "description"
+# Apply
+docker compose exec backend alembic upgrade head
+# Rollback one
+docker compose exec backend alembic downgrade -1
 ```
 
-If `black` or `mypy` are not installed locally, install them: `pip3 install black mypy`
-
-These mirror the CI lint job in `.github/workflows/deploy.yml`. A failed CI build blocks deployment via Watchtower, so never push code that hasn't passed all three checks.
-
-## Adding a New Tool
-
-1. Create `tools/new_tool.py` with an async function returning a markdown string
-2. Register in `server.py` with `@mcp.tool()` decorator (docstring becomes the tool description)
-3. Use lazy imports inside the tool function to keep server startup fast
+Migrations run automatically on backend startup. Current: 001 (initial), 002 (admin + invites), 003 (OAuth columns).
