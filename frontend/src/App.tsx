@@ -9,6 +9,7 @@ import Documents from './pages/Documents';
 import Search from './pages/Search';
 import ApiKeys from './pages/ApiKeys';
 import Admin from './pages/Admin';
+import Setup from './pages/Setup';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route element={<Layout />}>
+            <Route path="/setup" element={<Setup />} />
             <Route path="/documents" element={<Documents />} />
             <Route path="/search" element={<Search />} />
             <Route path="/api-keys" element={<ApiKeys />} />

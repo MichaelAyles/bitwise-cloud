@@ -1,6 +1,22 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { apiKeys, documents, type ApiKey, type ApiKeyCreated, type Document, ApiError } from '../api';
 
+type UsageTab = 'mcp' | 'rest';
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button onClick={handleCopy} className="absolute top-2 right-2 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+      {copied ? 'Copied!' : 'Copy'}
+    </button>
+  );
+}
+
 export default function ApiKeys() {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [docs, setDocs] = useState<Document[]>([]);
@@ -57,6 +73,8 @@ export default function ApiKeys() {
 
   const docTitle = (id: string) => docs.find(d => d.id === id)?.title || id.slice(0, 8);
 
+  const [usageTab, setUsageTab] = useState<UsageTab>('mcp');
+
   if (loading) return <p className="text-slate-400 text-sm">Loading...</p>;
 
   return (
@@ -71,18 +89,62 @@ export default function ApiKeys() {
 
       {error && <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-3 py-2 mb-4">{error}</div>}
 
-      {newKey && (
-        <div className="bg-green-900/30 border border-green-700 rounded-lg p-4 mb-4">
-          <p className="text-green-300 text-sm font-medium mb-2">API key created! Copy it now - it won't be shown again.</p>
-          <code className="block bg-slate-800/50 rounded px-3 py-2 text-sm text-green-300 font-mono break-all select-all">
-            {newKey.key}
-          </code>
-          <p className="text-xs text-slate-500 mt-2">
-            Use this key as the <code className="text-slate-400">api_key</code> parameter when calling MCP tools,
-            or as the <code className="text-slate-400">X-API-Key</code> header for REST API calls.
-          </p>
-        </div>
-      )}
+      {newKey && (() => {
+        const origin = window.location.origin;
+        const mcpSnippet = `{
+  "mcpServers": {
+    "bitwise": {
+      "type": "streamable-http",
+      "url": "${origin}/mcp",
+      "headers": {
+        "X-API-Key": "${newKey.key}"
+      }
+    }
+  }
+}`;
+        const restSnippet = `curl -H "X-API-Key: ${newKey.key}" \\
+  "${origin}/api/v1/search?q=UART+baud+rate"`;
+        return (
+          <div className="bg-green-900/30 border border-green-700 rounded-lg p-4 mb-4">
+            <p className="text-green-300 text-sm font-medium mb-2">API key created! Copy it now - it won't be shown again.</p>
+            <code className="block bg-slate-800/50 rounded px-3 py-2 text-sm text-green-300 font-mono break-all select-all">
+              {newKey.key}
+            </code>
+            <p className="text-xs text-slate-500 mt-3 mb-3">
+              Use this key as the <code className="text-slate-400">api_key</code> parameter when calling MCP tools,
+              or as the <code className="text-slate-400">X-API-Key</code> header for REST API calls.
+            </p>
+            <div className="flex gap-1 mb-0">
+              <button onClick={() => setUsageTab('mcp')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-t transition-colors ${usageTab === 'mcp' ? 'bg-slate-900/60 text-white border border-slate-700/50 border-b-transparent' : 'text-slate-500 hover:text-slate-300'}`}>
+                MCP
+              </button>
+              <button onClick={() => setUsageTab('rest')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-t transition-colors ${usageTab === 'rest' ? 'bg-slate-900/60 text-white border border-slate-700/50 border-b-transparent' : 'text-slate-500 hover:text-slate-300'}`}>
+                REST API
+              </button>
+            </div>
+            {usageTab === 'mcp' && (
+              <div className="relative">
+                <p className="text-xs text-slate-500 mb-2 mt-3">Add to <code className="text-slate-400">.claude/settings.json</code>:</p>
+                <div className="relative">
+                  <pre className="bg-slate-900/60 border border-slate-700/50 rounded p-3 font-mono text-xs text-slate-300 overflow-x-auto whitespace-pre">{mcpSnippet}</pre>
+                  <CopyButton text={mcpSnippet} />
+                </div>
+              </div>
+            )}
+            {usageTab === 'rest' && (
+              <div className="relative">
+                <p className="text-xs text-slate-500 mb-2 mt-3">Search via the REST API:</p>
+                <div className="relative">
+                  <pre className="bg-slate-900/60 border border-slate-700/50 rounded p-3 font-mono text-xs text-slate-300 overflow-x-auto whitespace-pre">{restSnippet}</pre>
+                  <CopyButton text={restSnippet} />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {showCreate && (
         <form onSubmit={handleCreate} className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 mb-6">

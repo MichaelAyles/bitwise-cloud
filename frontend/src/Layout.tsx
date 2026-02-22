@@ -2,6 +2,7 @@ import { NavLink, Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from './auth';
 
 const baseNavItems = [
+  { to: '/setup', label: 'Setup' },
   { to: '/documents', label: 'Documents' },
   { to: '/search', label: 'Search' },
   { to: '/api-keys', label: 'API Keys' },

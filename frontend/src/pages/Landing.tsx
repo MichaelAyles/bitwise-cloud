@@ -192,6 +192,8 @@ export default function Landing() {
               <p className="text-slate-400 text-sm leading-relaxed">
                 Connect directly to Claude Code and other AI tools via the Model Context Protocol.
               </p>
+              <pre className="mt-3 bg-slate-900/60 border border-slate-700/50 rounded p-3 font-mono text-xs text-slate-400 overflow-x-auto whitespace-pre">{`"url": "https://your-host/mcp"
+"api_key": "bw_..."`}</pre>
             </div>
             <div className="border border-slate-700/50 rounded-lg p-6 bg-slate-800/20">
               <div className="text-blue-400 text-2xl mb-3 font-mono">#[]</div>
@@ -199,6 +201,7 @@ export default function Landing() {
               <p className="text-slate-400 text-sm leading-relaxed">
                 Semantic + keyword search with automatic table extraction from datasheets and PDFs.
               </p>
+              <pre className="mt-3 bg-slate-900/60 border border-slate-700/50 rounded p-3 font-mono text-xs text-slate-400 overflow-x-auto whitespace-pre">{`search_docs("UART baud rate register")`}</pre>
             </div>
             <div className="border border-slate-700/50 rounded-lg p-6 bg-slate-800/20">
               <div className="text-blue-400 text-2xl mb-3 font-mono">{ }</div>
@@ -206,6 +209,8 @@ export default function Landing() {
               <p className="text-slate-400 text-sm leading-relaxed">
                 API keys with per-document scoping. Integrate search into your own tools and workflows.
               </p>
+              <pre className="mt-3 bg-slate-900/60 border border-slate-700/50 rounded p-3 font-mono text-xs text-slate-400 overflow-x-auto whitespace-pre">{`curl -H "X-API-Key: bw_..." \\
+  /api/v1/search?q=SPI+clock`}</pre>
             </div>
           </div>
         </div>
