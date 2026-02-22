@@ -86,13 +86,85 @@ git push main → CI (black + mypy + build + smoke test) → GHCR → Watchtower
 
 Immutable `:sha-<commit>` tags on every build enable rollback. See [docs/deploy.md](docs/deploy.md) for full setup, rollback, and backup procedures.
 
-## MCP Plugin
+## Claude Code Plugin
+
+The standalone Claude Code plugin lets you search your datasheets directly from Claude Code without the web app. It runs an MCP server locally with the full ingestion and search pipeline.
+
+### Prerequisites
+
+- Python 3.11+
+- [Poetry](https://python-poetry.org/docs/#installation)
+
+### Setup
 
 ```bash
-claude plugin add bitwise-embedded-docs
+# Clone the repo and install the engine dependencies
+git clone https://github.com/MichaelAyles/bitwise-cloud.git
+cd bitwise-cloud
+poetry install
+
+# Load the plugin in Claude Code
+claude --plugin-dir ./plugins/bitwise-embedded-docs
 ```
 
-Tools: `search_docs`, `find_register`, `list_docs`, `ingest_docs`, `remove_docs`
+On first run, the embedding model (`bge-small-en-v1.5`, ~130MB) downloads automatically.
+
+### Usage
+
+Once the plugin is loaded, you get two slash commands and five MCP tools:
+
+**Slash commands** (user-invoked):
+- `/bitwise-embedded-docs:ingest-docs` — Guided PDF ingestion
+- `/bitwise-embedded-docs:search-docs` — Guided search
+
+**MCP tools** (Claude uses automatically):
+- `search_docs(query, top_k, doc_filter)` — Hybrid keyword + semantic search
+- `find_register(name, peripheral)` — Exact register lookup
+- `list_docs()` — List indexed documents with chunk/register counts
+- `ingest_docs(doc_path, title, version)` — Ingest a PDF into the local index
+- `remove_docs(doc_id)` — Remove a document from the index
+
+### Standalone CLI
+
+You can also use the engine outside Claude Code:
+
+```bash
+poetry run mcp-embedded-docs ingest path/to/datasheet.pdf --title "MCP2515"
+poetry run mcp-embedded-docs list
+poetry run mcp-embedded-docs serve   # Start MCP server on stdio
+```
+
+### Configuration
+
+Optionally create a `config.yaml` in the project root to override defaults:
+
+```yaml
+chunking:
+  target_size: 2500    # chars per chunk
+  overlap: 200         # overlap between chunks
+search:
+  keyword_weight: 0.4
+  semantic_weight: 0.6
+embeddings:
+  model: BAAI/bge-small-en-v1.5
+  device: cpu
+```
+
+### Plugin structure
+
+```
+plugins/bitwise-embedded-docs/
+├── .claude-plugin/
+│   └── plugin.json        # Plugin metadata (name, version, description)
+├── .mcp.json              # MCP server config (runs python -m mcp_embedded_docs serve)
+└── skills/
+    ├── ingest-docs/
+    │   └── SKILL.md       # Guided ingestion skill
+    └── search-docs/
+        └── SKILL.md       # Guided search skill
+```
+
+The plugin delegates to the `mcp_embedded_docs/` engine package, which contains the ingestion pipeline, indexing layer, and retrieval system.
 
 ## Tech Stack
 

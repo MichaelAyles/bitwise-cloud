@@ -160,11 +160,30 @@ The frontend uses `@shoojs/react` for Google sign-in. Gotchas learned the hard w
 3. Register router in `backend/app/api/router.py`
 4. Add frontend API method in `frontend/src/api.ts`
 
-## Adding a New MCP Tool
+## Claude Code Plugin
+
+The plugin at `plugins/bitwise-embedded-docs/` wraps the `mcp_embedded_docs/` engine for use in Claude Code.
+
+**Structure**:
+```
+plugins/bitwise-embedded-docs/
+├── .claude-plugin/plugin.json   # Metadata (name, version 0.2.0)
+├── .mcp.json                    # MCP server: python -m mcp_embedded_docs serve
+└── skills/
+    ├── ingest-docs/SKILL.md     # /bitwise-embedded-docs:ingest-docs
+    └── search-docs/SKILL.md     # /bitwise-embedded-docs:search-docs
+```
+
+**Testing locally**: `claude --plugin-dir ./plugins/bitwise-embedded-docs`
+
+**Version**: Keep `plugins/bitwise-embedded-docs/.claude-plugin/plugin.json` version in sync with `pyproject.toml` version.
+
+### Adding a New MCP Tool
 
 1. Create `mcp_embedded_docs/tools/new_tool.py` with an async function returning markdown
 2. Register in `server.py` with `@mcp.tool()` (docstring = tool description)
 3. Use lazy imports inside the function to keep server startup fast
+4. Optionally add a skill in `plugins/bitwise-embedded-docs/skills/` with a `SKILL.md`
 
 ## Database Migrations
 
