@@ -38,11 +38,13 @@ Internet → Cloudflare Tunnel (HTTPS + DDoS) → cloudflared
 
 - **Auth** — JWT access tokens (15 min) + refresh tokens (7 days, httponly cookie). Google sign-in via [Shoo](https://shoo.dev) (PKCE OAuth, ES256 JWKS verification). Invite-only or open registration, admin role. OAuth users auto-created on first sign-in, linked to existing accounts by verified email.
 
-- **API Keys** — Scoped access tokens (`bw_` prefix, SHA256 hashed, shown once at creation). Per-document permissions, usage tracking, expiry. Used by both the REST API (`/api/v1/search`) and the MCP endpoint.
+- **API Keys** — Scoped access tokens (`bw_` prefix, SHA256 hashed, shown once at creation). Per-document permissions, usage tracking, expiry. Used by both the REST API (`/api/v1/search`) and the MCP endpoint. On creation, shows ready-to-copy MCP and REST API usage snippets with the key pre-filled.
 
 - **Admin** — System stats, user management (activate/deactivate/promote), document oversight across all users, invite system with token generation and expiry, registration mode toggle, health monitoring (Postgres + Redis checks).
 
 - **MCP Integration** — Streamable HTTP MCP server at `/mcp/*` with `search_docs` and `find_register` tools (API key authenticated). Also ships as a standalone Claude Code plugin with 5 tools and `/ingest-docs`, `/search-docs` slash commands.
+
+- **In-App Setup Guide** — After signing in, the `/setup` page walks through three steps: upload a datasheet, create an API key, and connect your tools (with tabbed MCP/REST/plugin code snippets using the correct deployment URL). The landing page feature cards also include code snippet previews.
 
 ## Quick Start
 
@@ -52,7 +54,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-App at `http://localhost:80`. First user to register becomes admin.
+App at `http://localhost:80`. First user to register becomes admin. After signing in, visit `/setup` for a step-by-step integration guide.
 
 ## API
 
@@ -86,16 +88,42 @@ git push main → CI (black + mypy + build + smoke test) → GHCR → Watchtower
 
 Immutable `:sha-<commit>` tags on every build enable rollback. See [docs/deploy.md](docs/deploy.md) for full setup, rollback, and backup procedures.
 
-## Claude Code Plugin
+## Integration
+
+### Hosted MCP Server
+
+Connect Claude Code (or any MCP client) to your Bitwise deployment. Add to `.claude/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "bitwise": {
+      "type": "streamable-http",
+      "url": "https://your-host/mcp",
+      "headers": {
+        "X-API-Key": "bw_your_api_key"
+      }
+    }
+  }
+}
+```
+
+### REST API
+
+```bash
+curl -H "X-API-Key: bw_..." https://your-host/api/v1/search?q=UART+baud+rate
+```
+
+### Claude Code Plugin (Standalone)
 
 The standalone Claude Code plugin lets you search your datasheets directly from Claude Code without the web app. It runs an MCP server locally with the full ingestion and search pipeline.
 
-### Prerequisites
+#### Prerequisites
 
 - Python 3.11+
 - [Poetry](https://python-poetry.org/docs/#installation)
 
-### Setup
+#### Setup
 
 ```bash
 # Clone the repo and install the engine dependencies
@@ -109,7 +137,7 @@ claude --plugin-dir ./plugins/bitwise-embedded-docs
 
 On first run, the embedding model (`bge-small-en-v1.5`, ~130MB) downloads automatically.
 
-### Usage
+#### Usage
 
 Once the plugin is loaded, you get two slash commands and five MCP tools:
 
@@ -124,7 +152,7 @@ Once the plugin is loaded, you get two slash commands and five MCP tools:
 - `ingest_docs(doc_path, title, version)` — Ingest a PDF into the local index
 - `remove_docs(doc_id)` — Remove a document from the index
 
-### Standalone CLI
+#### Standalone CLI
 
 You can also use the engine outside Claude Code:
 
@@ -134,7 +162,7 @@ poetry run mcp-embedded-docs list
 poetry run mcp-embedded-docs serve   # Start MCP server on stdio
 ```
 
-### Configuration
+#### Configuration
 
 Optionally create a `config.yaml` in the project root to override defaults:
 
@@ -150,7 +178,7 @@ embeddings:
   device: cpu
 ```
 
-### Plugin structure
+#### Plugin structure
 
 ```
 plugins/bitwise-embedded-docs/

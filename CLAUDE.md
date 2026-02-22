@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Pre-commit Checks (MANDATORY)
 
 **Run all three before every commit. CI will reject failures.**
@@ -79,9 +81,10 @@ frontend/
       Login.tsx       # Email/password + Google OAuth
       Register.tsx    # Email/password + Google OAuth (invite token support)
       AuthCallback.tsx # Shoo OAuth redirect target (SDK auto-handles code exchange)
+      Setup.tsx       # 3-step getting started guide with tabbed code snippets
       Documents.tsx   # Upload, list, progress polling, delete
       Search.tsx      # Hybrid search with document filtering
-      ApiKeys.tsx     # Create, scope, revoke API keys
+      ApiKeys.tsx     # Create, scope, revoke API keys (shows usage snippets on creation)
       Admin.tsx       # Tabs: dashboard, users, documents, invites
     components/
       GoogleSignInButton.tsx  # Shoo SDK integration (sessionStorage for redirect survival)
