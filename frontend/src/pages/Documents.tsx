@@ -182,41 +182,25 @@ export default function Documents() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     {renamingId === doc.id ? (
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <input
-                          type="text"
-                          value={renameValue}
-                          onChange={e => setRenameValue(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') handleRename(doc.id);
-                            if (e.key === 'Escape') cancelRename();
-                          }}
-                          autoFocus
-                          className="flex-1 min-w-0 bg-slate-700/50 border border-slate-600/50 rounded px-2 py-1 text-sm text-white focus:outline-none focus:border-blue-500"
-                        />
-                        <button
-                          onClick={() => handleRename(doc.id)}
-                          className="text-xs text-blue-400 hover:text-blue-300 transition-colors whitespace-nowrap"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={cancelRename}
-                          className="text-xs text-slate-500 hover:text-slate-300 transition-colors whitespace-nowrap"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+                      <input
+                        type="text"
+                        value={renameValue}
+                        onChange={e => setRenameValue(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') handleRename(doc.id);
+                          if (e.key === 'Escape') cancelRename();
+                        }}
+                        onBlur={() => handleRename(doc.id)}
+                        autoFocus
+                        className="flex-1 min-w-0 bg-slate-700/50 border border-slate-600/50 rounded px-2 py-0.5 text-sm text-white focus:outline-none focus:border-blue-500"
+                      />
                     ) : (
-                      <>
-                        <h3 className="text-sm font-medium truncate">{doc.title}</h3>
-                        <button
-                          onClick={() => startRename(doc)}
-                          className="text-xs text-slate-500 hover:text-slate-300 transition-colors whitespace-nowrap"
-                        >
-                          Rename
-                        </button>
-                      </>
+                      <h3
+                        className="text-sm font-medium truncate cursor-pointer hover:text-blue-400 transition-colors"
+                        onClick={() => startRename(doc)}
+                      >
+                        {doc.title}
+                      </h3>
                     )}
                     <StatusBadge status={doc.status} />
                   </div>
