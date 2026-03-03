@@ -117,6 +117,11 @@ jobs:
           done
 
           echo "Health response: $STATUS"
+          if [ -z "$STATUS" ]; then
+            echo "Backend failed to start within 120s. Container logs:"
+            docker logs test-backend
+            exit 1
+          fi
           echo "$STATUS" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d['status']=='healthy' else 1)"
 
       # Only tag :latest after smoke test passes (re-tag server-side, no local pull needed)
