@@ -24,6 +24,7 @@ export default function ApiKeys() {
   const [showCreate, setShowCreate] = useState(false);
   const [newKey, setNewKey] = useState<ApiKeyCreated | null>(null);
   const [error, setError] = useState('');
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   // Create form
   const [name, setName] = useState('');
@@ -72,6 +73,19 @@ export default function ApiKeys() {
   };
 
   const docTitle = (id: string) => docs.find(d => d.id === id)?.title || id.slice(0, 8);
+
+  const handleToggleKeyDoc = async (key: ApiKey, docId: string) => {
+    const current = key.document_ids;
+    const updated = current.includes(docId)
+      ? current.filter(d => d !== docId)
+      : [...current, docId];
+    try {
+      await apiKeys.updateDocuments(key.id, updated);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update documents');
+    }
+  };
 
   const [usageTab, setUsageTab] = useState<UsageTab>('mcp');
 
@@ -195,41 +209,92 @@ export default function ApiKeys() {
         </div>
       ) : (
         <div className="space-y-3">
-          {keys.map(key => (
-            <div key={key.id} className={`bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 ${!key.is_active ? 'opacity-50' : ''}`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium">{key.name}</span>
-                    <code className="text-xs text-slate-500 font-mono">{key.key_prefix}...</code>
-                    {!key.is_active && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-slate-700/50 text-slate-500 border border-slate-600/50">revoked</span>
+          {keys.map(key => {
+            const isExpanded = expandedKey === key.id;
+            return (
+              <div key={key.id} className={`bg-slate-800/50 border border-slate-700/50 rounded-lg p-4 ${!key.is_active ? 'opacity-50' : ''}`}>
+                <div className="flex items-start justify-between">
+                  <div
+                    className={`flex-1 min-w-0 ${key.is_active ? 'cursor-pointer' : ''}`}
+                    onClick={() => key.is_active && setExpandedKey(isExpanded ? null : key.id)}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium">{key.name}</span>
+                      <code className="text-xs text-slate-500 font-mono">{key.key_prefix}...</code>
+                      {!key.is_active && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-slate-700/50 text-slate-500 border border-slate-600/50">revoked</span>
+                      )}
+                      {key.is_active && (
+                        <span className="text-xs text-slate-500">{isExpanded ? '\u25B2' : '\u25BC'}</span>
+                      )}
+                    </div>
+                    <div className="flex gap-4 text-xs text-slate-500">
+                      <span>{key.request_count} requests</span>
+                      {key.last_used_at && <span>Last used {new Date(key.last_used_at).toLocaleDateString()}</span>}
+                      <span>Created {new Date(key.created_at).toLocaleDateString()}</span>
+                    </div>
+                    {!isExpanded && key.document_ids.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {key.document_ids.map(id => (
+                          <span key={id} className="text-xs px-2 py-0.5 rounded bg-slate-700/50 border border-slate-600/50 text-slate-400">
+                            {docTitle(id)}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
-                  <div className="flex gap-4 text-xs text-slate-500">
-                    <span>{key.request_count} requests</span>
-                    {key.last_used_at && <span>Last used {new Date(key.last_used_at).toLocaleDateString()}</span>}
-                    <span>Created {new Date(key.created_at).toLocaleDateString()}</span>
-                  </div>
-                  {key.document_ids.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {key.document_ids.map(id => (
-                        <span key={id} className="text-xs px-2 py-0.5 rounded bg-slate-700/50 border border-slate-600/50 text-slate-400">
-                          {docTitle(id)}
-                        </span>
-                      ))}
-                    </div>
+                  {key.is_active && (
+                    <button onClick={() => handleRevoke(key.id)}
+                      className="text-slate-500 hover:text-red-400 text-sm ml-4 transition-colors">
+                      Revoke
+                    </button>
                   )}
                 </div>
-                {key.is_active && (
-                  <button onClick={() => handleRevoke(key.id)}
-                    className="text-slate-500 hover:text-red-400 text-sm ml-4 transition-colors">
-                    Revoke
-                  </button>
+                {isExpanded && key.is_active && (
+                  <div className="mt-4 pt-4 border-t border-slate-700/50">
+                    <div className="mb-4">
+                      <label className="block text-xs text-slate-400 mb-1">API Key</label>
+                      {key.key_value ? (
+                        <div className="relative">
+                          <code className="block bg-slate-900/60 border border-slate-700/50 rounded px-3 py-2 text-sm text-slate-300 font-mono break-all select-all pr-16">
+                            {key.key_value}
+                          </code>
+                          <CopyButton text={key.key_value} />
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500">Key created before viewing was enabled</p>
+                      )}
+                    </div>
+                    {docs.length > 0 && (
+                      <div>
+                        <label className="block text-xs text-slate-400 mb-2">Document access</label>
+                        <div className="space-y-1.5">
+                          {docs.map(doc => (
+                            <label key={doc.id} className="flex items-center gap-2 cursor-pointer group">
+                              <input
+                                type="checkbox"
+                                checked={key.document_ids.includes(doc.id)}
+                                onChange={() => handleToggleKeyDoc(key, doc.id)}
+                                className="rounded border-slate-600 bg-slate-700/50 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+                              />
+                              <span className="text-sm text-slate-300 group-hover:text-white transition-colors truncate">
+                                {doc.title}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-2">
+                          {key.document_ids.length === 0
+                            ? 'No documents selected \u2014 key has access to all documents'
+                            : `${key.document_ids.length} document(s) selected`}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

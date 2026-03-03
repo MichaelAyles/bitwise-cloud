@@ -28,6 +28,7 @@ def _make_response(
     data = {
         "id": api_key.id,
         "key_prefix": api_key.key_prefix,
+        "key_value": api_key.key_value,
         "name": api_key.name,
         "is_active": api_key.is_active,
         "last_used_at": api_key.last_used_at,
@@ -74,6 +75,7 @@ async def create_api_key(
         user_id=user.id,
         key_hash=key_hash,
         key_prefix=key_prefix,
+        key_value=raw_key,
         name=body.name,
         expires_at=body.expires_at,
     )

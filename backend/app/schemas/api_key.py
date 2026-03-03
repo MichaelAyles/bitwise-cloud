@@ -13,6 +13,7 @@ class ApiKeyCreate(BaseModel):
 class ApiKeyResponse(BaseModel):
     id: uuid.UUID
     key_prefix: str
+    key_value: str | None = None
     name: str
     is_active: bool
     last_used_at: datetime | None

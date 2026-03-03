@@ -165,6 +165,7 @@ export interface ApiKey {
   created_at: string;
   expires_at: string | null;
   document_ids: string[];
+  key_value: string | null;
 }
 
 export interface ApiKeyCreated extends ApiKey {

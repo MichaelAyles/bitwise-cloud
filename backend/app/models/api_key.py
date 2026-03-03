@@ -24,6 +24,7 @@ class ApiKey(Base):
         String(64), unique=True, nullable=False, index=True
     )
     key_prefix: Mapped[str] = mapped_column(String(11), nullable=False)
+    key_value: Mapped[str | None] = mapped_column(String(70), nullable=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
