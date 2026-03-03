@@ -173,6 +173,11 @@ class MetadataStore:
         Returns:
             List of (chunk_id, score) tuples
         """
+        # Escape FTS5 special characters by quoting each token
+        sanitized = " ".join(f'"{token}"' for token in query.split() if token.strip())
+        if not sanitized:
+            return []
+
         cursor = self.conn.cursor()
 
         if doc_filter:
@@ -183,7 +188,7 @@ class MetadataStore:
                 WHERE chunks_fts MATCH ? AND chunks.doc_id = ?
                 ORDER BY rank
                 LIMIT ?
-            """, (query, doc_filter, top_k))
+            """, (sanitized, doc_filter, top_k))
         else:
             cursor.execute("""
                 SELECT id, rank
@@ -191,7 +196,7 @@ class MetadataStore:
                 WHERE chunks_fts MATCH ?
                 ORDER BY rank
                 LIMIT ?
-            """, (query, top_k))
+            """, (sanitized, top_k))
 
         results = []
         for row in cursor.fetchall():

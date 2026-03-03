@@ -1,12 +1,12 @@
 import uuid
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SearchRequest(BaseModel):
     query: str
     doc_ids: list[uuid.UUID] | None = None
-    top_k: int = 10
+    top_k: int = Field(default=10, ge=1, le=100)
 
 
 class SearchResult(BaseModel):

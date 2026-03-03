@@ -85,6 +85,10 @@ export default function Documents() {
     const file = e.target.files?.[0];
     if (!file) return;
     setError('');
+    if (file.size > 100 * 1024 * 1024) {
+      setError('File size exceeds 100 MB limit');
+      return;
+    }
     setUploading(true);
     try {
       await documents.upload(file);

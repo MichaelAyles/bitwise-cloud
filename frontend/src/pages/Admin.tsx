@@ -34,6 +34,7 @@ function DashboardTab() {
   const [regMode, setRegMode] = useState('');
   const [toggling, setToggling] = useState(false);
   const [sysHealth, setSysHealth] = useState<HealthStatus | null>(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     admin.stats().then(setStats);
@@ -43,10 +44,13 @@ function DashboardTab() {
 
   const toggleRegMode = async () => {
     setToggling(true);
+    setError('');
     try {
       const newMode = regMode === 'invite_only' ? 'open' : 'invite_only';
       const res = await admin.updateSettings({ registration_mode: newMode });
       setRegMode(res.registration_mode);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update registration mode');
     } finally {
       setToggling(false);
     }
@@ -95,6 +99,8 @@ function DashboardTab() {
         </div>
       )}
 
+      {error && <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-3 py-2">{error}</div>}
+
       <div className="border-t border-slate-700/50 pt-4">
         <h3 className="text-sm font-medium text-slate-400 mb-2">Registration Mode</h3>
         <div className="flex items-center gap-4">
@@ -125,25 +131,37 @@ function StatCard({ label, value }: { label: string; value: string | number }) {
 function UsersTab() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     admin.users().then(setUsers).finally(() => setLoading(false));
   }, []);
 
   const toggleActive = async (u: AdminUser) => {
-    const updated = await admin.updateUser(u.id, { is_active: !u.is_active });
-    setUsers(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setError('');
+    try {
+      const updated = await admin.updateUser(u.id, { is_active: !u.is_active });
+      setUsers(prev => prev.map(p => p.id === updated.id ? updated : p));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update user status');
+    }
   };
 
   const toggleAdmin = async (u: AdminUser) => {
-    const updated = await admin.updateUser(u.id, { is_admin: !u.is_admin });
-    setUsers(prev => prev.map(p => p.id === updated.id ? updated : p));
+    setError('');
+    try {
+      const updated = await admin.updateUser(u.id, { is_admin: !u.is_admin });
+      setUsers(prev => prev.map(p => p.id === updated.id ? updated : p));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to update admin status');
+    }
   };
 
   if (loading) return <div className="text-slate-400">Loading users...</div>;
 
   return (
     <div className="overflow-x-auto">
+      {error && <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-3 py-2 mb-4">{error}</div>}
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-slate-400 border-b border-slate-700/50">
@@ -196,6 +214,7 @@ function UsersTab() {
 function DocumentsTab() {
   const [docs, setDocs] = useState<AdminDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     admin.documents().then(setDocs).finally(() => setLoading(false));
@@ -203,14 +222,20 @@ function DocumentsTab() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this document? This cannot be undone.')) return;
-    await admin.deleteDocument(id);
-    setDocs(prev => prev.filter(d => d.id !== id));
+    setError('');
+    try {
+      await admin.deleteDocument(id);
+      setDocs(prev => prev.filter(d => d.id !== id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to delete document');
+    }
   };
 
   if (loading) return <div className="text-slate-400">Loading documents...</div>;
 
   return (
     <div className="overflow-x-auto">
+      {error && <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-3 py-2 mb-4">{error}</div>}
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-slate-400 border-b border-slate-700/50">
@@ -284,8 +309,13 @@ function InvitesTab() {
 
   const handleRevoke = async (id: string) => {
     if (!confirm('Revoke this invite?')) return;
-    await admin.revokeInvite(id);
-    setInvites(prev => prev.filter(i => i.id !== id));
+    setError('');
+    try {
+      await admin.revokeInvite(id);
+      setInvites(prev => prev.filter(i => i.id !== id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Failed to revoke invite');
+    }
   };
 
   const copyLink = (token: string, id: string) => {

@@ -23,6 +23,8 @@ async def lifespan(application: FastAPI):
 
 
 def create_app() -> FastAPI:
+    setup_logging()
+
     application = FastAPI(
         title="Bitwise",
         description="Hosted search for embedded systems documentation",
@@ -38,8 +40,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=[settings.public_host, "http://localhost:5173"],
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     application.include_router(api_router)

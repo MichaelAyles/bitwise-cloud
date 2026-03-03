@@ -20,6 +20,15 @@ docker compose -f "${COMPOSE_DIR}/docker-compose.yml" \
   pg_dump -U "${POSTGRES_USER:-bitwise}" "${POSTGRES_DB:-bitwise}" \
   | gzip > "$BACKUP_FILE"
 
+# Verify backup is not empty/truncated
+MIN_SIZE=1024
+ACTUAL_SIZE=$(stat -f%z "$BACKUP_FILE" 2>/dev/null || stat -c%s "$BACKUP_FILE" 2>/dev/null || echo "0")
+if [ "$ACTUAL_SIZE" -lt "$MIN_SIZE" ]; then
+    echo "ERROR: Backup file is empty or too small (${ACTUAL_SIZE} bytes)" >&2
+    rm -f "$BACKUP_FILE"
+    exit 1
+fi
+
 echo "Backup complete: $(du -h "$BACKUP_FILE" | cut -f1)"
 
 # Remove backups older than retention period

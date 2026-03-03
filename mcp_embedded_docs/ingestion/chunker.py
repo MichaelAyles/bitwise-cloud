@@ -124,8 +124,9 @@ class SemanticChunker:
             text = prefix + self._format_table_as_text(table)
             structured = self._format_table_as_json(table)
 
-            # Content-based chunk ID
-            chunk_hash = hashlib.md5(text.encode()).hexdigest()[:12]
+            # Content-based chunk ID (include hierarchy to avoid collisions)
+            section_prefix = " > ".join(hierarchy) if hierarchy else f"table_{i}"
+            chunk_hash = hashlib.md5(f"{section_prefix}:{text}".encode()).hexdigest()[:12]
             chunk_id = f"{doc_id}_{chunk_hash}"
 
             page_num = table_pages.get(i, 0)
@@ -188,7 +189,8 @@ class SemanticChunker:
                 if len(prefix) + len(content) <= self.target_size:
                     # Fits in a single chunk
                     chunk_text = prefix + content
-                    chunk_hash = hashlib.md5(chunk_text.encode()).hexdigest()[:12]
+                    section_path = " > ".join(current_hierarchy)
+                    chunk_hash = hashlib.md5(f"{section_path}:{chunk_text}".encode()).hexdigest()[:12]
 
                     chunk = Chunk(
                         id=f"{doc_id}_{chunk_hash}",
@@ -206,8 +208,9 @@ class SemanticChunker:
                     chunks.append(chunk)
                 else:
                     # Large section — split with sentence-aware boundaries
+                    section_path = " > ".join(current_hierarchy)
                     split_chunks = self._split_section(
-                        doc_id, section, prefix
+                        doc_id, section, prefix, section_path
                     )
                     chunks.extend(split_chunks)
 
@@ -228,7 +231,7 @@ class SemanticChunker:
             boundaries.append(m.end())
         return boundaries
 
-    def _split_section(self, doc_id: str, section: Section, prefix: str) -> List[Chunk]:
+    def _split_section(self, doc_id: str, section: Section, prefix: str, section_path: str = "") -> List[Chunk]:
         """Split a large section into multiple chunks using sentence boundaries."""
         chunks: List[Chunk] = []
         content = section.content.strip()
@@ -268,7 +271,7 @@ class SemanticChunker:
 
             chunk_text = prefix + content[start:end].strip()
             if chunk_text.strip():
-                chunk_hash = hashlib.md5(chunk_text.encode()).hexdigest()[:12]
+                chunk_hash = hashlib.md5(f"{section_path}:{chunk_text}".encode()).hexdigest()[:12]
                 chunks.append(Chunk(
                     id=f"{doc_id}_{chunk_hash}",
                     doc_id=doc_id,

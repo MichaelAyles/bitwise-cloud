@@ -53,11 +53,14 @@ class HybridSearch:
         Returns:
             List of search results sorted by relevance
         """
+        # When filtering by document, fetch more results to ensure enough survive filtering
+        semantic_fetch_k = top_k * 10 if doc_filter else top_k * 2
+
         # Get keyword search results
         keyword_results = self._keyword_search(query, top_k * 2, doc_filter)
 
         # Get semantic search results
-        semantic_results = self._semantic_search(query, top_k * 2, doc_filter)
+        semantic_results = self._semantic_search(query, semantic_fetch_k, doc_filter)
 
         # Combine and rank results
         combined = self._combine_results(keyword_results, semantic_results)
@@ -126,6 +129,12 @@ class HybridSearch:
             # For normalized vectors, L2 distance ≈ 2(1 - cosine_similarity)
             # So similarity ≈ 1 - distance/2
             results = [(chunk_id, max(0, 1 - distance / 2)) for chunk_id, distance in results]
+
+            # Normalize scores to 0-1 range by dividing by max_score
+            if results:
+                max_score = max(score for _, score in results)
+                if max_score > 0:
+                    results = [(chunk_id, score / max_score) for chunk_id, score in results]
 
             return results
         except Exception as e:

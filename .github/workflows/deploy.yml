@@ -28,8 +28,20 @@ jobs:
       - name: Type check
         run: mypy backend/app/ --ignore-missing-imports --install-types --non-interactive
 
+  frontend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build and type-check frontend
+        run: cd frontend && npm ci && npx tsc -b --noEmit && npx vite build
+
   build:
-    needs: lint
+    needs: [lint, frontend-lint]
     runs-on: ubuntu-latest
     permissions:
       contents: read

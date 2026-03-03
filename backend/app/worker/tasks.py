@@ -18,18 +18,20 @@ logger = logging.getLogger(__name__)
 
 # Sync engine for worker (Celery is sync)
 _sync_engine = None
+_sync_session_factory = None
 
 
 def _get_sync_session() -> Session:
-    global _sync_engine
+    global _sync_engine, _sync_session_factory
     if _sync_engine is None:
         # Build sync URL from async URL
         db_url = os.environ.get("DATABASE_URL", "")
         sync_url = os.environ.get("SYNC_DATABASE_URL", "")
         if not sync_url:
             sync_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
-        _sync_engine = create_engine(sync_url)
-    return sessionmaker(bind=_sync_engine)()
+        _sync_engine = create_engine(sync_url, pool_pre_ping=True)
+        _sync_session_factory = sessionmaker(bind=_sync_engine)
+    return _sync_session_factory()
 
 
 @celery.task(bind=True)
@@ -96,6 +98,7 @@ def ingest_document(self, document_id: str):
 
     except Exception as e:
         logger.exception("Ingestion failed for %s", document_id)
+        db.rollback()
         try:
             doc = db.get(Document, uuid.UUID(document_id))
             if doc:
@@ -138,8 +141,7 @@ def remove_document(self, document_id: str):
             / str(doc.user_id)
             / f"{doc.id}.pdf"
         )
-        if pdf_path.exists():
-            pdf_path.unlink()
+        pdf_path.unlink(missing_ok=True)
 
         # Update storage and delete record
         if user:

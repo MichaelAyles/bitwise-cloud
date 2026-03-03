@@ -2,9 +2,9 @@
 
 from pathlib import Path
 from typing import List, Tuple, Optional
+import json
 import numpy as np
 import faiss
-import pickle
 
 
 class VectorStore:
@@ -78,10 +78,10 @@ class VectorStore:
         # Save FAISS index
         faiss.write_index(self.index, str(filepath))
 
-        # Save ID mapping
-        id_file = filepath.with_suffix('.ids')
-        with open(id_file, 'wb') as f:
-            pickle.dump(self.ids, f)
+        # Save ID mapping as JSON
+        id_file = filepath.with_suffix('.ids.json')
+        with open(id_file, 'w') as f:
+            json.dump(self.ids, f)
 
     def load(self, filepath: Path):
         """Load index from disk.
@@ -92,10 +92,16 @@ class VectorStore:
         # Load FAISS index
         self.index = faiss.read_index(str(filepath))
 
-        # Load ID mapping
-        id_file = filepath.with_suffix('.ids')
-        with open(id_file, 'rb') as f:
-            self.ids = pickle.load(f)
+        # Load ID mapping from JSON (with fallback for legacy pickle format)
+        id_file_json = filepath.with_suffix('.ids.json')
+        id_file_pickle = filepath.with_suffix('.ids')
+        if id_file_json.exists():
+            with open(id_file_json, 'r') as f:
+                self.ids = json.load(f)
+        elif id_file_pickle.exists():
+            import pickle
+            with open(id_file_pickle, 'rb') as f:
+                self.ids = pickle.load(f)
 
     @property
     def size(self) -> int:

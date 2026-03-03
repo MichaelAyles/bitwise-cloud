@@ -1,8 +1,12 @@
+import logging
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.database import engine
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -17,7 +21,8 @@ async def health():
             await conn.execute(text("SELECT 1"))
         checks["postgres"] = "ok"
     except Exception as e:
-        checks["postgres"] = f"error: {e}"
+        logger.exception("PostgreSQL health check failed")
+        checks["postgres"] = "error"
 
     # Check Redis
     try:
@@ -30,7 +35,8 @@ async def health():
         checks["redis"] = "ok"
         r.close()
     except Exception as e:
-        checks["redis"] = f"error: {e}"
+        logger.exception("Redis health check failed")
+        checks["redis"] = "error"
 
     all_ok = all(v == "ok" for v in checks.values())
     body = {"status": "healthy" if all_ok else "degraded", "checks": checks}

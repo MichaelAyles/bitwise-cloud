@@ -13,6 +13,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - backend
     logging:
       driver: json-file
       options:
@@ -26,10 +28,12 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$REDIS_PASSWORD redis-cli ping"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - backend
     logging:
       driver: json-file
       options:
@@ -63,6 +67,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - frontend
+      - backend
     logging:
       driver: json-file
       options:
@@ -92,6 +99,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - backend
     logging:
       driver: json-file
       options:
@@ -111,11 +120,17 @@ services:
       - caddy_config:/config
     depends_on:
       - backend
+    networks:
+      - frontend
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+
+networks:
+  frontend:
+  backend:
 
 volumes:
   postgres_data:

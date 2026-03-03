@@ -94,22 +94,35 @@ async def create_api_key(
 async def list_api_keys(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
 ):
     result = await db.execute(
         select(ApiKey)
         .where(ApiKey.user_id == user.id)
         .order_by(ApiKey.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     keys = result.scalars().all()
 
+    if not keys:
+        return []
+
+    # Batch-load all document links for the user's keys in a single query
+    api_key_ids = [key.id for key in keys]
+    doc_links_result = await db.execute(
+        select(ApiKeyDocument.api_key_id, ApiKeyDocument.document_id).where(
+            ApiKeyDocument.api_key_id.in_(api_key_ids)
+        )
+    )
+    doc_links_by_key: dict[uuid.UUID, list[uuid.UUID]] = {}
+    for row in doc_links_result.fetchall():
+        doc_links_by_key.setdefault(row[0], []).append(row[1])
+
     responses = []
     for key in keys:
-        doc_links = await db.execute(
-            select(ApiKeyDocument.document_id).where(
-                ApiKeyDocument.api_key_id == key.id
-            )
-        )
-        doc_ids = [row[0] for row in doc_links.fetchall()]
+        doc_ids = doc_links_by_key.get(key.id, [])
         responses.append(_make_response(key, doc_ids))
 
     return responses

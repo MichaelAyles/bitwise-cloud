@@ -20,20 +20,27 @@ mcp = FastMCP(
 )
 
 
+_sync_engine = None
+_sync_session_factory = None
+
+
 def _get_sync_session():
     """Get a sync SQLAlchemy session for use in MCP tool handlers."""
-    import os
+    global _sync_engine, _sync_session_factory
+    if _sync_engine is None:
+        import os
 
-    from sqlalchemy import create_engine
-    from sqlalchemy.orm import sessionmaker
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
 
-    db_url = os.environ.get("SYNC_DATABASE_URL", "")
-    if not db_url:
-        db_url = os.environ.get("DATABASE_URL", "").replace(
-            "postgresql+asyncpg://", "postgresql://"
-        )
-    engine = create_engine(db_url)
-    return sessionmaker(bind=engine)()
+        db_url = os.environ.get("SYNC_DATABASE_URL", "")
+        if not db_url:
+            db_url = os.environ.get("DATABASE_URL", "").replace(
+                "postgresql+asyncpg://", "postgresql://"
+            )
+        _sync_engine = create_engine(db_url, pool_pre_ping=True)
+        _sync_session_factory = sessionmaker(bind=_sync_engine)
+    return _sync_session_factory()
 
 
 def _resolve_api_key(raw_key: str) -> tuple[uuid.UUID, list[uuid.UUID]]:
@@ -66,7 +73,7 @@ def _resolve_api_key(raw_key: str) -> tuple[uuid.UUID, list[uuid.UUID]]:
 
         # Update usage
         api_key.last_used_at = datetime.now(timezone.utc)
-        api_key.request_count += 1
+        api_key.request_count = ApiKey.request_count + 1
         db.commit()
 
         return api_key.user_id, allowed_doc_ids

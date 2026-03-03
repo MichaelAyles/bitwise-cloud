@@ -67,6 +67,8 @@ async def get_stats(
 async def list_users(
     admin: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
 ):
     doc_count_sub = (
         select(Document.user_id, func.count(Document.id).label("doc_count"))
@@ -88,6 +90,8 @@ async def list_users(
         .outerjoin(doc_count_sub, User.id == doc_count_sub.c.user_id)
         .outerjoin(key_count_sub, User.id == key_count_sub.c.user_id)
         .order_by(User.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
 
     rows = result.all()
@@ -198,11 +202,15 @@ async def update_user(
 async def list_documents(
     admin: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
 ):
     result = await db.execute(
         select(Document, User.email)
         .join(User, Document.user_id == User.id)
         .order_by(Document.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     rows = result.all()
     return [
@@ -236,8 +244,12 @@ async def delete_document(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
 
-    await db.delete(doc)
+    doc.status = "removing"
     await db.commit()
+
+    from app.worker.tasks import remove_document
+
+    remove_document.delay(str(doc.id))
 
 
 # --- Invites ---
@@ -247,8 +259,12 @@ async def delete_document(
 async def list_invites(
     admin: User = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
 ):
-    result = await db.execute(select(Invite).order_by(Invite.created_at.desc()))
+    result = await db.execute(
+        select(Invite).order_by(Invite.created_at.desc()).limit(limit).offset(offset)
+    )
     return result.scalars().all()
 
 

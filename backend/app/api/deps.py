@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -101,9 +101,15 @@ async def get_api_key_auth(
     )
     allowed_doc_ids = [row[0] for row in doc_links.fetchall()]
 
-    # Update usage stats
-    api_key.last_used_at = datetime.now(timezone.utc)
-    api_key.request_count += 1
+    # Update usage stats atomically
+    await db.execute(
+        update(ApiKey)
+        .where(ApiKey.id == api_key.id)
+        .values(
+            last_used_at=datetime.now(timezone.utc),
+            request_count=ApiKey.request_count + 1,
+        )
+    )
     await db.commit()
 
     return ApiKeyAuth(user=user, api_key=api_key, allowed_doc_ids=allowed_doc_ids)

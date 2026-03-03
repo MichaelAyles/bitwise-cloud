@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from pathlib import Path
 
@@ -61,8 +62,8 @@ async def search_docs(
     from app.engine.adapter import search_documents
 
     index_dir = Path(settings.index_dir) / str(user.id)
-    hits = search_documents(
-        index_dir, doc_ids, doc_titles, body.query, top_k=body.top_k
+    hits = await asyncio.to_thread(
+        search_documents, index_dir, doc_ids, doc_titles, body.query, top_k=body.top_k
     )
 
     results = [
@@ -94,7 +95,9 @@ async def find_register(
     from app.engine.adapter import find_register_in_documents
 
     index_dir = Path(settings.index_dir) / str(user.id)
-    hit = find_register_in_documents(index_dir, doc_ids, doc_titles, body.name)
+    hit = await asyncio.to_thread(
+        find_register_in_documents, index_dir, doc_ids, doc_titles, body.name
+    )
 
     if not hit:
         raise HTTPException(status_code=404, detail=f"Register '{body.name}' not found")
@@ -141,8 +144,8 @@ async def api_search_docs(
     from app.engine.adapter import search_documents
 
     index_dir = Path(settings.index_dir) / str(auth.user.id)
-    hits = search_documents(
-        index_dir, doc_ids, doc_titles, body.query, top_k=body.top_k
+    hits = await asyncio.to_thread(
+        search_documents, index_dir, doc_ids, doc_titles, body.query, top_k=body.top_k
     )
 
     results = [
@@ -182,7 +185,9 @@ async def api_find_register(
     from app.engine.adapter import find_register_in_documents
 
     index_dir = Path(settings.index_dir) / str(auth.user.id)
-    hit = find_register_in_documents(index_dir, doc_ids, doc_titles, body.name)
+    hit = await asyncio.to_thread(
+        find_register_in_documents, index_dir, doc_ids, doc_titles, body.name
+    )
 
     if not hit:
         raise HTTPException(status_code=404, detail=f"Register '{body.name}' not found")

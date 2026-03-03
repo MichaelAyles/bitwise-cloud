@@ -1,6 +1,7 @@
 const BASE = '/api';
 
 let accessToken: string | null = null;
+let refreshPromise: Promise<string | null> | null = null;
 
 export function setToken(token: string | null) {
   accessToken = token;
@@ -30,19 +31,32 @@ async function request<T>(
   const res = await fetch(`${BASE}${path}`, { ...opts, headers });
 
   if (res.status === 401 && !skipAuthRetry) {
-    // Try refresh
-    const refreshRes = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' });
-    if (refreshRes.ok) {
-      const data = await refreshRes.json();
-      setToken(data.access_token);
-      headers['Authorization'] = `Bearer ${data.access_token}`;
+    // Try refresh, sharing the promise across concurrent 401s
+    if (!refreshPromise) {
+      refreshPromise = (async () => {
+        try {
+          const refreshRes = await fetch(`${BASE}/auth/refresh`, { method: 'POST', credentials: 'include' });
+          if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            setToken(data.access_token);
+            return data.access_token as string;
+          }
+          setToken(null);
+          window.location.href = '/login';
+          return null;
+        } finally {
+          refreshPromise = null;
+        }
+      })();
+    }
+    const newToken = await refreshPromise;
+    if (newToken) {
+      headers['Authorization'] = `Bearer ${newToken}`;
       const retry = await fetch(`${BASE}${path}`, { ...opts, headers });
       if (!retry.ok) throw new ApiError(retry.status, await retry.text());
       if (retry.status === 204) return undefined as T;
       return retry.json();
     }
-    setToken(null);
-    window.location.href = '/login';
     throw new ApiError(401, 'Session expired');
   }
 

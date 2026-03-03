@@ -72,6 +72,9 @@ async def api_upload_document(
             status_code=400, detail="File does not appear to be a valid PDF"
         )
 
+    if auth.user.storage_used_bytes + len(content) > auth.user.storage_limit_bytes:
+        raise HTTPException(status_code=413, detail="Storage limit exceeded")
+
     file_hash = hashlib.sha256(content).hexdigest()
 
     existing = await db.execute(

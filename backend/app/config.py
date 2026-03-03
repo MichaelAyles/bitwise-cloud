@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -25,6 +26,15 @@ class Settings(BaseSettings):
     shoo_jwks_url: str = "https://shoo.dev/.well-known/jwks.json"
 
     model_config = {"env_file": ".env"}
+
+    @model_validator(mode="after")
+    def validate_jwt_secret(self) -> "Settings":
+        if self.jwt_secret == "CHANGE_ME" or len(self.jwt_secret) < 32:
+            raise ValueError(
+                "jwt_secret must be at least 32 characters and not the default 'CHANGE_ME'. "
+                "Set JWT_SECRET in your environment or .env file."
+            )
+        return self
 
 
 settings = Settings()

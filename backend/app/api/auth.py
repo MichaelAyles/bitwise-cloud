@@ -187,6 +187,14 @@ async def oauth_shoo(
                 user.oauth_sub = claims.sub
 
         if user is None:
+            # Check registration mode before auto-registering
+            mode = await _get_registration_mode(db)
+            if mode == "invite_only":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Registration is by invitation only",
+                )
+
             # Auto-register new OAuth user
             user = User(
                 email=claims.email,
@@ -213,6 +221,7 @@ async def oauth_shoo(
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(
+    request: Request,
     response: Response,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
@@ -221,6 +230,9 @@ async def refresh(
     token = None
     if credentials:
         token = credentials.credentials
+
+    if token is None:
+        token = request.cookies.get("refresh_token")
 
     if token is None:
         raise HTTPException(

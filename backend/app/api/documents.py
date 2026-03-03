@@ -48,6 +48,9 @@ async def upload_document(
             status_code=400, detail="File does not appear to be a valid PDF"
         )
 
+    if user.storage_used_bytes + len(content) > user.storage_limit_bytes:
+        raise HTTPException(status_code=413, detail="Storage limit exceeded")
+
     file_hash = hashlib.sha256(content).hexdigest()
 
     # Check for duplicate
@@ -102,11 +105,15 @@ async def upload_document(
 async def list_documents(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    limit: int = 50,
+    offset: int = 0,
 ):
     result = await db.execute(
         select(Document)
         .where(Document.user_id == user.id)
         .order_by(Document.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     return result.scalars().all()
 

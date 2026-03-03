@@ -93,7 +93,8 @@ class TableDetector:
         try:
             pdf_page = pdf.pages[page.page_num]
 
-            # Extract all tables from the page
+            # Find tables to get bounding boxes, and extract table data
+            found_tables = pdf_page.find_tables()
             extracted_tables = pdf_page.extract_tables()
 
             for table_idx, table_data in enumerate(extracted_tables):
@@ -113,10 +114,16 @@ class TableDetector:
                 if self._is_likely_table_header(header_keywords):
                     table_type = self._classify_table_type(header_keywords)
 
+                    # Use actual table bounding box from pdfplumber if available
+                    if table_idx < len(found_tables):
+                        bbox = found_tables[table_idx].bbox
+                    else:
+                        bbox = (0, 0, pdf_page.width, pdf_page.height)
+
                     # Create a table region with the table index
                     tables.append(TableRegion(
                         page_num=page.page_num,
-                        bbox=(0, 0, pdf_page.width, pdf_page.height),
+                        bbox=bbox,
                         table_type=table_type,
                         header_keywords=header_keywords,
                         table_index=table_idx

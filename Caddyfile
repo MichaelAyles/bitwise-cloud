@@ -1,6 +1,9 @@
 :80 {
     # API routes
     handle /api/* {
+        request_body {
+            max_size 110MB
+        }
         reverse_proxy backend:8000
     }
 

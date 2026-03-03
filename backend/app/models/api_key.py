@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
@@ -29,7 +29,7 @@ class ApiKey(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     request_count: Mapped[int] = mapped_column(BigInteger, default=0)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=datetime.utcnow
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
