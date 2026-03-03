@@ -81,23 +81,41 @@ export default function Documents() {
     }
   }, [docs, load]);
 
+  const [uploadProgress, setUploadProgress] = useState('');
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setError('');
-    if (file.size > 100 * 1024 * 1024) {
-      setError('File size exceeds 100 MB limit');
-      return;
+
+    // Validate all files first
+    const toUpload: File[] = [];
+    for (const file of Array.from(files)) {
+      if (file.size > 100 * 1024 * 1024) {
+        setError(`${file.name} exceeds 100 MB limit`);
+        if (fileRef.current) fileRef.current.value = '';
+        return;
+      }
+      toUpload.push(file);
     }
+
     setUploading(true);
-    try {
-      await documents.upload(file);
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Upload failed');
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
+    let failed = 0;
+    for (let i = 0; i < toUpload.length; i++) {
+      setUploadProgress(`Uploading ${i + 1} of ${toUpload.length}: ${toUpload[i].name}`);
+      try {
+        await documents.upload(toUpload[i]);
+      } catch (err) {
+        failed++;
+        setError(err instanceof ApiError ? err.message : `Failed to upload ${toUpload[i].name}`);
+      }
+    }
+    setUploadProgress('');
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = '';
+    await load();
+    if (failed > 0 && toUpload.length > 1) {
+      setError(`${failed} of ${toUpload.length} uploads failed`);
     }
   };
 
@@ -116,11 +134,12 @@ export default function Documents() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold">Documents</h1>
         <label className={`cursor-pointer bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded px-4 py-2 transition-colors ${uploading ? 'opacity-50 pointer-events-none' : ''}`}>
-          {uploading ? 'Uploading...' : 'Upload PDF'}
-          <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handleUpload} disabled={uploading} />
+          {uploading ? 'Uploading...' : 'Upload PDFs'}
+          <input ref={fileRef} type="file" accept=".pdf" multiple className="hidden" onChange={handleUpload} disabled={uploading} />
         </label>
       </div>
 
+      {uploadProgress && <div className="bg-blue-900/40 border border-blue-700 text-blue-300 text-sm rounded px-3 py-2 mb-4">{uploadProgress}</div>}
       {error && <div className="bg-red-900/40 border border-red-700 text-red-300 text-sm rounded px-3 py-2 mb-4">{error}</div>}
 
       {loading ? (

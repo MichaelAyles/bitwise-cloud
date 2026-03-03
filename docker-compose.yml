@@ -81,7 +81,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
-    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=2
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=1
     environment:
       PYTHONPATH: /app
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-bitwise}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-bitwise}
