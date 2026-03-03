@@ -103,7 +103,7 @@ jobs:
             -e DATABASE_URL=postgresql+asyncpg://test:test@test-postgres:5432/test \
             -e SYNC_DATABASE_URL=postgresql://test:test@test-postgres:5432/test \
             -e REDIS_URL=redis://:test@test-redis:6379/0 \
-            -e JWT_SECRET=test-secret-not-for-production \
+            -e JWT_SECRET=test-secret-not-for-production-ci-smoke \
             -e UPLOAD_DIR=/tmp/uploads \
             -e INDEX_DIR=/tmp/indices \
             ${{ env.BACKEND_IMAGE }}:${{ github.sha }} \
