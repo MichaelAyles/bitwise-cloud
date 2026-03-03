@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "bitwise-cloud": {
+      "command": "python",
+      "args": ["-m", "bitwise_cloud", "serve"]
+    }
+  }
+}

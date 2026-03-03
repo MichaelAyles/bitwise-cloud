@@ -5,7 +5,10 @@ description = "MCP server for embedded systems documentation - search registers,
 authors = ["Mike A"]
 readme = "README.md"
 license = "MIT"
-packages = [{include = "mcp_embedded_docs"}]
+packages = [
+    {include = "mcp_embedded_docs"},
+    {include = "bitwise_cloud"},
+]
 keywords = ["mcp", "embedded", "documentation", "registers", "datasheet"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -39,3 +42,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 mcp-embedded-docs = "mcp_embedded_docs.__main__:cli"
+bitwise-cloud = "bitwise_cloud.__main__:cli"

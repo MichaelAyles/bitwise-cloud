@@ -8,6 +8,7 @@ class DocumentResponse(BaseModel):
     id: uuid.UUID
     title: str
     filename: str
+    file_hash: str
     file_size_bytes: int
     page_count: int | None
     status: str

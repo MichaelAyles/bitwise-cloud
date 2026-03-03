@@ -9,4 +9,5 @@ RUN npm run build
 
 FROM caddy:2-alpine
 COPY --from=frontend /app/dist /srv/frontend
+COPY marketplace-hosted.json /srv/marketplace.json
 COPY Caddyfile /etc/caddy/Caddyfile

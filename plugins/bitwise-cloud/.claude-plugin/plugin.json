@@ -1,0 +1,10 @@
+{
+  "name": "bitwise-cloud",
+  "version": "0.1.0",
+  "description": "Search embedded systems documentation via Bitwise Cloud — lightweight client, no local engine",
+  "author": {
+    "name": "Bitwise"
+  },
+  "license": "MIT",
+  "keywords": ["embedded", "registers", "datasheet", "cloud"]
+}

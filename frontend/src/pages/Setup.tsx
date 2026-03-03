@@ -39,8 +39,10 @@ export default function Setup() {
   const restSnippet = `curl -H "X-API-Key: bw_your_api_key" \\
   "${origin}/api/v1/search?q=UART+baud+rate"`;
 
-  const pluginSnippet = `# Clone the repo and run with the local plugin
-claude --plugin-dir ./plugins/bitwise-embedded-docs`;
+  const pluginSnippet = `# Install from the hosted marketplace
+/plugin marketplace add ${origin}/plugin
+
+# Then install the bitwise-cloud plugin`;
 
   return (
     <div>
@@ -112,7 +114,7 @@ claude --plugin-dir ./plugins/bitwise-embedded-docs`;
 
               {tab === 'plugin' && (
                 <div>
-                  <p className="text-xs text-slate-500 mb-2 mt-3">Run Claude Code with the local plugin (for standalone use without the hosted server):</p>
+                  <p className="text-xs text-slate-500 mb-2 mt-3">Install the Bitwise Cloud plugin for Claude Code (requires an API key from step 2):</p>
                   <pre className={snippetStyle}>{pluginSnippet}</pre>
                 </div>
               )}
