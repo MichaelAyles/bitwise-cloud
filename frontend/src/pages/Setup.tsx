@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const snippetStyle = 'bg-slate-900/60 border border-slate-700/50 rounded p-3 font-mono text-xs text-slate-300 overflow-x-auto whitespace-pre';
 
-type Tab = 'mcp' | 'rest' | 'plugin';
+type Tab = 'mcp' | 'rest' | 'python';
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -36,14 +36,41 @@ export default function Setup() {
   }
 }`;
 
-  const restSnippet = `curl -H "X-API-Key: bw_your_api_key" \\
-  "${origin}/api/v1/search?q=UART+baud+rate"`;
+  const restSnippet = `# Search documents
+curl -X POST "${origin}/api/v1/search" \\
+  -H "X-API-Key: bw_your_api_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"query": "UART baud rate", "top_k": 5}'
 
-  const pluginSnippet = `# Add the Bitwise marketplace
-/plugin marketplace add michaelayles/bitwise-cloud
+# Upload a PDF
+curl -X POST "${origin}/api/v1/documents/upload" \\
+  -H "X-API-Key: bw_your_api_key" \\
+  -F "file=@datasheet.pdf"
 
-# Install the cloud plugin
-/plugin install bitwise-cloud@bitwise-mcp`;
+# Find a register
+curl -X POST "${origin}/api/v1/search/register" \\
+  -H "X-API-Key: bw_your_api_key" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name": "CANSTAT"}'`;
+
+  const pythonSnippet = `import requests
+
+API_KEY = "bw_your_api_key"
+BASE = "${origin}/api/v1"
+headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+
+# Search documents
+results = requests.post(f"{BASE}/search",
+    headers=headers,
+    json={"query": "UART baud rate", "top_k": 5})
+print(results.json())
+
+# Upload a PDF
+with open("datasheet.pdf", "rb") as f:
+    resp = requests.post(f"{BASE}/documents/upload",
+        headers={"X-API-Key": API_KEY},
+        files={"file": f})
+    print(resp.json())`;
 
   return (
     <div>
@@ -94,9 +121,9 @@ export default function Setup() {
               </p>
 
               <div className="flex gap-1 mb-0">
-                <TabButton active={tab === 'mcp'} onClick={() => setTab('mcp')}>MCP</TabButton>
-                <TabButton active={tab === 'rest'} onClick={() => setTab('rest')}>REST API</TabButton>
-                <TabButton active={tab === 'plugin'} onClick={() => setTab('plugin')}>Claude Code Plugin</TabButton>
+                <TabButton active={tab === 'mcp'} onClick={() => setTab('mcp')}>MCP / Claude Code</TabButton>
+                <TabButton active={tab === 'rest'} onClick={() => setTab('rest')}>cURL</TabButton>
+                <TabButton active={tab === 'python'} onClick={() => setTab('python')}>Python</TabButton>
               </div>
 
               {tab === 'mcp' && (
@@ -113,10 +140,10 @@ export default function Setup() {
                 </div>
               )}
 
-              {tab === 'plugin' && (
+              {tab === 'python' && (
                 <div>
-                  <p className="text-xs text-slate-500 mb-2 mt-3">Install the Bitwise Cloud plugin for Claude Code (requires an API key from step 2):</p>
-                  <pre className={snippetStyle}>{pluginSnippet}</pre>
+                  <p className="text-xs text-slate-500 mb-2 mt-3">Search and upload from Python:</p>
+                  <pre className={snippetStyle}>{pythonSnippet}</pre>
                 </div>
               )}
             </div>
