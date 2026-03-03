@@ -35,13 +35,13 @@ Added `file_hash: str` to `DocumentResponse` between `filename` and `file_size_b
 
 Imported and registered the new router.
 
-## Hosted Marketplace
+## Plugin Marketplace
 
-### New file: `marketplace-hosted.json`
-Plugin list with GitHub source refs for URL-based marketplaces.
+Git-based distribution via `.claude-plugin/marketplace.json`. Users add with:
+```
+/plugin marketplace add michaelayles/bitwise-cloud
+```
 
-### Modified: `Caddyfile`
-Added `/plugin` route before the SPA catch-all.
-
-### Modified: `Dockerfile.caddy`
-Copies `marketplace-hosted.json` into the image as `/srv/marketplace.json`.
+URL-based distribution (`/plugin` endpoint) was removed — the Claude Code plugin
+spec doesn't support relative plugin sources in URL-based marketplaces, and our
+monorepo structure requires relative paths.

@@ -18,7 +18,9 @@ At repo root, sibling to `mcp_embedded_docs/`.
 ## New Plugin: `plugins/bitwise-cloud/`
 
 - `.claude-plugin/plugin.json` — metadata
-- `.mcp.json` — MCP server config
+- `.mcp.json` — MCP server config (uses `uv` for self-contained dependency management)
+- `pyproject.toml` — lightweight project deps for `uv` (mcp, httpx, pydantic)
+- `bitwise_cloud/` — symlink to `../../bitwise_cloud` (followed during plugin cache copy)
 - `skills/setup/SKILL.md` — guide to get API key and configure
 - `skills/list-docs/SKILL.md` — scan local PDFs, check cloud status
 - `skills/upload-doc/SKILL.md` — upload PDF, monitor progress
@@ -26,5 +28,5 @@ At repo root, sibling to `mcp_embedded_docs/`.
 
 ## Modified Files
 - `pyproject.toml` — added `bitwise_cloud` package and CLI entry point
-- `.claude-plugin/marketplace.json` — added cloud plugin entry
-- `frontend/src/pages/Setup.tsx` — updated plugin tab to show marketplace install command
+- `.claude-plugin/marketplace.json` — added cloud plugin entry, fixed version sync
+- `frontend/src/pages/Setup.tsx` — updated plugin tab to show GitHub-based marketplace install

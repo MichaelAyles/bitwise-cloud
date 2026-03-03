@@ -39,10 +39,11 @@ export default function Setup() {
   const restSnippet = `curl -H "X-API-Key: bw_your_api_key" \\
   "${origin}/api/v1/search?q=UART+baud+rate"`;
 
-  const pluginSnippet = `# Install from the hosted marketplace
-/plugin marketplace add ${origin}/plugin
+  const pluginSnippet = `# Add the Bitwise marketplace
+/plugin marketplace add michaelayles/bitwise-cloud
 
-# Then install the bitwise-cloud plugin`;
+# Install the cloud plugin
+/plugin install bitwise-cloud@bitwise-mcp`;
 
   return (
     <div>

@@ -9,14 +9,6 @@
         reverse_proxy backend:8000
     }
 
-    # Plugin marketplace
-    handle /plugin {
-        root * /srv
-        rewrite * /marketplace.json
-        header Content-Type application/json
-        file_server
-    }
-
     # Frontend SPA
     handle {
         root * /srv/frontend
