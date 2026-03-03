@@ -1,13 +1,31 @@
 """MCP server for the Bitwise Cloud client."""
 
-import logging
 from pathlib import Path
 
+import httpx
 from mcp.server.fastmcp import FastMCP
 
-logger = logging.getLogger(__name__)
-
 mcp = FastMCP("bitwise-cloud")
+
+
+def _api_error(e: httpx.HTTPStatusError) -> str:
+    """Format an API error into a user-friendly message."""
+    status = e.response.status_code
+    if status == 401:
+        return "Authentication failed — check your API key."
+    try:
+        detail = e.response.json().get("detail", e.response.text)
+    except Exception:
+        detail = e.response.text
+    if status == 404:
+        return detail
+    if status == 409:
+        return detail
+    return f"API error ({status}): {detail}"
+
+
+def _conn_error() -> str:
+    return "Could not connect to Bitwise Cloud. Check your network and API URL."
 
 
 @mcp.tool()
@@ -19,6 +37,9 @@ async def set_api_key(key: str) -> str:
     Args:
         key: API key (starts with bw_)
     """
+    if not key.startswith("bw_") or len(key) < 10:
+        return "Invalid API key format. Keys start with 'bw_' and are at least 10 characters."
+
     from .config import save_api_key
 
     save_api_key(key)
@@ -50,7 +71,17 @@ async def list_docs(directory: str = ".") -> str:
         local_pdfs[file_hash] = pdf
 
     # Fetch cloud documents
-    cloud_docs = await client.list_documents()
+    try:
+        cloud_docs = await client.list_documents()
+    except httpx.HTTPStatusError as e:
+        cloud_docs = []
+        cloud_error = _api_error(e)
+    except httpx.TransportError:
+        cloud_docs = []
+        cloud_error = _conn_error()
+    else:
+        cloud_error = None
+
     cloud_by_hash: dict[str, dict] = {}
     for doc in cloud_docs:
         cloud_by_hash[doc["file_hash"]] = doc
@@ -68,14 +99,15 @@ async def list_docs(directory: str = ".") -> str:
                 f"{doc['chunk_count']} chunks, {doc['register_count']} registers)"
             )
         else:
-            indexed_label = ""
-            local_only.append(f"- {path.name}{indexed_label}")
+            local_only.append(f"- {path.name}")
 
     for h, doc in cloud_by_hash.items():
         if h not in local_pdfs:
             cloud_only.append(f"- {doc['title']} ({doc['filename']}, {doc['status']})")
 
     lines = []
+    if cloud_error:
+        lines.append(f"**Cloud error**: {cloud_error}\n")
     if indexed:
         lines.append("## Cloud-Indexed")
         lines.extend(indexed)
@@ -112,7 +144,13 @@ async def upload_doc(doc_path: str, title: str | None = None) -> str:
         return "Only PDF files are supported."
 
     client = BitwiseClient()
-    doc = await client.upload_document(path, title)
+    try:
+        doc = await client.upload_document(path, title)
+    except httpx.HTTPStatusError as e:
+        return _api_error(e)
+    except httpx.TransportError:
+        return _conn_error()
+
     return (
         f"Uploaded **{doc['title']}** (id: `{doc['id']}`)\n"
         f"Status: {doc['status']}\n\n"
@@ -130,7 +168,13 @@ async def check_progress(doc_id: str) -> str:
     from .client import BitwiseClient
 
     client = BitwiseClient()
-    progress = await client.get_progress(doc_id)
+    try:
+        progress = await client.get_progress(doc_id)
+    except httpx.HTTPStatusError as e:
+        return _api_error(e)
+    except httpx.TransportError:
+        return _conn_error()
+
     msg = progress.get("progress_message") or ""
     return (
         f"Status: **{progress['status']}**\n"
@@ -158,7 +202,13 @@ async def search_docs(
 
     client = BitwiseClient()
     doc_ids = [d.strip() for d in doc_filter.split(",")] if doc_filter else None
-    result = await client.search(query, top_k, doc_ids)
+
+    try:
+        result = await client.search(query, top_k, doc_ids)
+    except httpx.HTTPStatusError as e:
+        return _api_error(e)
+    except httpx.TransportError:
+        return _conn_error()
 
     results = result.get("results", [])
     if not results:
@@ -188,18 +238,21 @@ async def find_register(
 
     Args:
         name: Register name (e.g. 'MCR', 'CTRL')
-        peripheral: Optional peripheral name to filter (e.g. 'FlexCAN0')
+        peripheral: Optional peripheral name to narrow the search (e.g. 'FlexCAN0')
     """
     from .client import BitwiseClient
 
     client = BitwiseClient()
-    doc_ids = None
-    search_name = f"{peripheral}_{name}" if peripheral else name
+    search_name = f"{peripheral} {name}" if peripheral else name
 
     try:
-        result = await client.find_register(search_name, doc_ids)
-    except Exception:
-        return f"Register '{search_name}' not found."
+        result = await client.find_register(search_name)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            return f"Register '{search_name}' not found."
+        return _api_error(e)
+    except httpx.TransportError:
+        return _conn_error()
 
     lines = [f"## Register: {result.get('name', name)}"]
     if result.get("document_title"):
