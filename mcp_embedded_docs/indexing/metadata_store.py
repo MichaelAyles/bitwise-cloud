@@ -173,8 +173,10 @@ class MetadataStore:
         Returns:
             List of (chunk_id, score) tuples
         """
-        # Escape FTS5 special characters by quoting each token
-        sanitized = " ".join(f'"{token}"' for token in query.split() if token.strip())
+        # Escape FTS5 special characters and use OR so partial matches surface
+        # (e.g. "kea128 wdt" matches chunks with either term, BM25 boosts both)
+        tokens = [f'"{token}"' for token in query.split() if token.strip()]
+        sanitized = " OR ".join(tokens) if len(tokens) > 1 else (tokens[0] if tokens else "")
         if not sanitized:
             return []
 

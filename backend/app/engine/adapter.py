@@ -259,11 +259,21 @@ def search_documents(
     query: str,
     top_k: int = 10,
 ) -> list[SearchHit]:
-    """Search across multiple per-document indices using hybrid search."""
+    """Search across multiple per-document indices using hybrid search.
+
+    Uses two-phase scoring: first collect raw scores from all documents,
+    then normalize each channel (semantic/keyword) to 0-1 globally before
+    combining with weights. This ensures both channels contribute equally.
+    """
+    import json
+
     embedder = get_shared_embedder()
     query_vector = embedder.embed_query(query)
 
-    all_hits: list[SearchHit] = []
+    # Phase 1: Collect raw scores from all documents
+    raw_semantic: dict[str, float] = {}
+    raw_keyword: dict[str, float] = {}
+    chunk_doc_map: dict[str, str] = {}
 
     for doc_id in doc_ids:
         try:
@@ -277,61 +287,88 @@ def search_documents(
             vs = _get_vector_store(vector_path, embedder.dimension)
             semantic_results = vs.search(query_vector, top_k=top_k * 2)
 
-            # Convert L2 distance to similarity score
-            semantic_scores = {
-                cid: max(0.0, 1.0 - dist / 2.0) for cid, dist in semantic_results
-            }
+            for cid, dist in semantic_results:
+                score = max(0.0, 1.0 - dist / 2.0)
+                raw_semantic[cid] = score
+                chunk_doc_map[cid] = doc_id
 
             # Keyword search (cached)
             ms = _get_metadata_store(metadata_path)
             keyword_results = ms.keyword_search(query, top_k=top_k * 2)
-            keyword_scores = dict(keyword_results)
 
-            # Combine scores
-            all_chunk_ids = set(semantic_scores.keys()) | set(keyword_scores.keys())
-            for chunk_id in all_chunk_ids:
-                sem = semantic_scores.get(chunk_id, 0.0)
-                kw = keyword_scores.get(chunk_id, 0.0)
-                combined = 0.6 * sem + 0.4 * kw
-                if chunk_id in semantic_scores and chunk_id in keyword_scores:
-                    combined *= 1.2
+            for cid, score in keyword_results:
+                raw_keyword[cid] = score
+                chunk_doc_map[cid] = doc_id
 
-                chunk_data = ms.get_chunk(chunk_id)
-                if chunk_data:
-                    import json
-
-                    structured = chunk_data.get("structured_data")
-                    if isinstance(structured, str):
-                        try:
-                            structured = json.loads(structured)
-                        except (json.JSONDecodeError, TypeError):
-                            structured = None
-                    metadata = chunk_data.get("metadata")
-                    if isinstance(metadata, str):
-                        try:
-                            metadata = json.loads(metadata)
-                        except (json.JSONDecodeError, TypeError):
-                            metadata = {}
-
-                    all_hits.append(
-                        SearchHit(
-                            chunk_id=chunk_id,
-                            score=combined,
-                            text=chunk_data.get("text", ""),
-                            doc_id=doc_id,
-                            document_title=doc_titles.get(doc_id, ""),
-                            page_start=chunk_data.get("page_start", 0),
-                            page_end=chunk_data.get("page_end", 0),
-                            section=(metadata or {}).get("section_title"),
-                            structured_data=structured,
-                        )
-                    )
         except Exception as e:
             logger.error("Error searching document %s: %s", doc_id, e)
             continue
 
-    all_hits.sort(key=lambda h: h.score, reverse=True)
-    return all_hits[:top_k]
+    # Phase 2: Normalize each channel to 0-1 range globally
+    if raw_semantic:
+        max_sem = max(raw_semantic.values())
+        if max_sem > 0:
+            raw_semantic = {k: v / max_sem for k, v in raw_semantic.items()}
+
+    if raw_keyword:
+        max_kw = max(raw_keyword.values())
+        if max_kw > 0:
+            raw_keyword = {k: v / max_kw for k, v in raw_keyword.items()}
+
+    # Phase 3: Combine normalized scores
+    all_chunk_ids = set(raw_semantic.keys()) | set(raw_keyword.keys())
+    scored_chunks: list[tuple[str, float, str]] = []
+
+    for chunk_id in all_chunk_ids:
+        sem = raw_semantic.get(chunk_id, 0.0)
+        kw = raw_keyword.get(chunk_id, 0.0)
+        combined = 0.6 * sem + 0.4 * kw
+        if chunk_id in raw_semantic and chunk_id in raw_keyword:
+            combined *= 1.2
+        scored_chunks.append((chunk_id, combined, chunk_doc_map[chunk_id]))
+
+    scored_chunks.sort(key=lambda h: h[1], reverse=True)
+
+    # Phase 4: Build result objects for top hits
+    all_hits: list[SearchHit] = []
+
+    for chunk_id, score, doc_id in scored_chunks[:top_k]:
+        try:
+            metadata_path = index_dir / f"metadata_{doc_id}.db"
+            ms = _get_metadata_store(metadata_path)
+            chunk_data = ms.get_chunk(chunk_id)
+            if chunk_data:
+                structured = chunk_data.get("structured_data")
+                if isinstance(structured, str):
+                    try:
+                        structured = json.loads(structured)
+                    except (json.JSONDecodeError, TypeError):
+                        structured = None
+                metadata = chunk_data.get("metadata")
+                if isinstance(metadata, str):
+                    try:
+                        metadata = json.loads(metadata)
+                    except (json.JSONDecodeError, TypeError):
+                        metadata = {}
+
+                all_hits.append(
+                    SearchHit(
+                        chunk_id=chunk_id,
+                        score=score,
+                        text=chunk_data.get("text", ""),
+                        doc_id=doc_id,
+                        document_title=doc_titles.get(doc_id, ""),
+                        page_start=chunk_data.get("page_start", 0),
+                        page_end=chunk_data.get("page_end", 0),
+                        section=(metadata or {}).get("section_title"),
+                        structured_data=structured,
+                    )
+                )
+        except Exception as e:
+            logger.error("Error fetching chunk %s: %s", chunk_id, e)
+            continue
+
+    return all_hits
 
 
 def find_register_in_documents(
